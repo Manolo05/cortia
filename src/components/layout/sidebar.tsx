@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState } from 'react'
 
 const navigation = [
   {
@@ -48,6 +49,28 @@ export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+  const [userInfo, setUserInfo] = useState<{name: string, cabinet: string, initials: string} | null>(null)
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profil } = await supabase
+          .from('profil_utilisateur')
+          .select('nom_complet, cabinets(nom_cabinet)')
+          .eq('user_id', user.id)
+          .single()
+        
+        if (profil) {
+          const nom = profil.nom_complet || user.email || 'Courtier'
+          const cabinet = (profil.cabinets as any)?.nom_cabinet || 'Mon Cabinet'
+          const initials = nom.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
+          setUserInfo({ name: nom, cabinet, initials })
+        }
+      }
+    }
+    loadUser()
+  }, [supabase])
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -56,53 +79,60 @@ export function Sidebar() {
   }
 
   return (
-    <div className="flex flex-col h-full w-64 bg-white border-r border-gray-200">
+    <div className="cortia-sidebar flex flex-col h-full w-64">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-100">
-        <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-sm">
+      <div className="flex items-center gap-3 px-6 py-5" style={{borderBottom: '1px solid rgba(255,255,255,0.1)'}}>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-lg" style={{background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)'}}>
           <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
           </svg>
         </div>
-        <span className="text-xl font-bold text-gray-900">CortIA</span>
+        <div>
+          <span className="text-lg font-bold text-white tracking-tight">CortIA</span>
+          <p className="text-xs" style={{color: 'rgba(148,163,184,0.8)'}}>Courtage Immobilier</p>
+        </div>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1">
         {navigation.map(item => {
-          const isActive = item.href === '/' 
-            ? pathname === '/' 
-            : pathname.startsWith(item.href)
-          
+          const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
           return (
             <Link
               key={item.name}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-              }`}
+              className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
             >
-              <span className={isActive ? 'text-blue-600' : 'text-gray-400'}>
+              <span className={isActive ? 'text-blue-400' : ''} style={{color: isActive ? '#60a5fa' : 'rgba(148,163,184,0.8)'}}>
                 {item.icon}
               </span>
-              {item.name}
+              <span>{item.name}</span>
             </Link>
           )
         })}
       </nav>
 
       {/* User section */}
-      <div className="px-3 py-4 border-t border-gray-100">
+      <div className="px-3 py-4" style={{borderTop: '1px solid rgba(255,255,255,0.1)'}}>
+        {userInfo && (
+          <div className="flex items-center gap-3 px-3 py-2 mb-2 rounded-xl" style={{background: 'rgba(255,255,255,0.05)'}}>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)'}}>
+              {userInfo.initials}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-white truncate">{userInfo.name}</p>
+              <p className="text-xs truncate" style={{color: 'rgba(148,163,184,0.7)'}}>{userInfo.cabinet}</p>
+            </div>
+          </div>
+        )}
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 w-full transition-colors"
+          className="sidebar-nav-item w-full"
         >
-          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5" fill="none" stroke="rgba(148,163,184,0.8)" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           </svg>
-          Déconnexion
+          <span style={{color: 'rgba(148,163,184,0.8)'}}>Déconnexion</span>
         </button>
       </div>
     </div>
