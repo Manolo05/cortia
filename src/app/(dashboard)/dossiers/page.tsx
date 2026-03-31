@@ -35,9 +35,9 @@ export default function DossiersPage() {
       if (!user) return
 
       const { data: profil } = await supabase
-        .from('profil_utilisateur')
+        .from('profils_utilisateurs')
         .select('cabinet_id')
-        .eq('user_id', user.id)
+        .eq('id', user.id)
         .single()
 
       if (profil?.cabinet_id) {
