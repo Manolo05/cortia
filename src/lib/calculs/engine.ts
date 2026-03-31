@@ -5,7 +5,7 @@
 import type { Emprunteur, Projet } from '../types'
 
 export interface ResultatCalcul {
-  // Revenus
+  // Revenu
   revenus_nets_mensuels_total: number
   charges_mensuelles_total: number
   reste_a_vivre: number
@@ -243,13 +243,13 @@ export function calculerDossier(
   if (tauxEndettementProjet <= 33) pointsForts.push(`Taux d'endettement maîtrisé (${tauxEndettementProjet.toFixed(1)}%)`)
   else if (tauxEndettementProjet > 35) {
     pointsVigilance.push(`Taux d'endettement élevé (${tauxEndettementProjet.toFixed(1)}%)`)
-    recommandations.push('Envisager une durée plus longue ou un apport supplémentaire pour réduire le taux d'endettement')
+        recommandations.push(`Envisager une durée plus longue ou un apport supplémentaire pour réduire le taux d'endettement`)
   }
   
   if (tauxApport >= 20) pointsForts.push(`Apport personnel significatif (${tauxApport.toFixed(0)}%)`)
   else if (tauxApport < 10) {
     pointsVigilance.push(`Apport personnel faible (${tauxApport.toFixed(0)}%)`)
-    recommandations.push('Augmenter l'apport personnel pour améliorer les conditions de financement')
+        recommandations.push(`Augmenter l'apport personnel pour amÃ©liorer les conditions de financement`)
   }
   
   if (projet.montant_emprunt > capaciteEmprunt * 1.1) {
