@@ -52,6 +52,10 @@ export default function RegisterPage() {
         await fetch('/api/auth/setup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nomComplet: formData.nomComplet,
+            nomCabinet: formData.nomCabinet,
+          }),
         })
       } catch {}
       router.push('/')
