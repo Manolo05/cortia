@@ -1,199 +1,266 @@
-'use client'
+'use client';
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import Link from 'next/link'
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
-interface DashboardStats {
-  totalDossiers: number
-  enCours: number
-  accordes: number
-  enAttente: number
+interface Dossier {
+  id: string;
+  reference?: string;
+  nom_client?: string;
+  statut: string;
+  score_global?: number;
+  niveau_risque?: string;
+  montant_projet?: number;
+  updated_at?: string;
 }
 
-interface UserInfo {
-  name: string
-  cabinet: string
+const STATUT_LABELS: Record<string, string> = {
+  en_attente: 'En attente',
+  en_cours: 'En cours',
+  analyse: 'En analyse',
+  accorde: 'Accordé',
+  refuse: 'Refusé',
+  archive: 'Archivé',
+};
+
+const STATUT_CLASSES: Record<string, string> = {
+  en_attente: 'badge-warning',
+  en_cours: 'badge-info',
+  analyse: 'badge-info',
+  accorde: 'badge-success',
+  refuse: 'badge-danger',
+  archive: 'badge-neutral',
+};
+
+function getRiskClass(risque?: string) {
+  if (risque === 'faible') return 'risk-low';
+  if (risque === 'moyen') return 'risk-medium';
+  if (risque === 'eleve') return 'risk-high';
+  if (risque === 'critique') return 'risk-critical';
+  return 'risk-medium';
+}
+
+function getScoreColor(score?: number) {
+  if (!score) return '#94a3b8';
+  if (score >= 75) return 'var(--risk-low)';
+  if (score >= 55) return 'var(--risk-medium)';
+  if (score >= 35) return 'var(--risk-high)';
+  return 'var(--risk-critical)';
+}
+
+function formatCurrency(amount?: number) {
+  if (!amount) return '—';
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(amount);
+}
+
+function timeAgo(dateStr?: string) {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
+  if (diff < 60) return 'À l\'instant';
+  if (diff < 3600) return `Il y a ${Math.floor(diff / 60)} min`;
+  if (diff < 86400) return `Il y a ${Math.floor(diff / 3600)}h`;
+  if (diff < 604800) return `Il y a ${Math.floor(diff / 86400)} j`;
+  return date.toLocaleDateString('fr-FR');
 }
 
 export default function DashboardPage() {
-  const supabase = createClient()
-  const [stats, setStats] = useState<DashboardStats>({ totalDossiers: 0, enCours: 0, accordes: 0, enAttente: 0 })
-  const [userInfo, setUserInfo] = useState<UserInfo>({ name: 'Courtier', cabinet: 'Mon Cabinet' })
-  const [loading, setLoading] = useState(true)
-  const [recentDossiers, setRecentDossiers] = useState<any[]>([])
+  const supabase = createClientComponentClient();
+  const [dossiers, setDossiers] = useState<Dossier[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [cabinetNom, setCabinetNom] = useState('');
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: profil } = await supabase
-        .from('profils_utilisateurs')
-        .select('nom_complet, cabinet_id')
-        .eq('id', user.id)
-        .single()
-
-      if (profil) {
-        setUserInfo({
-          name: profil.nom_complet || user.email || 'Courtier',
-          cabinet: 'Mon Cabinet',
-        })
-
-        const { data: dossiers } = await supabase
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data: profil } = await supabase
+          .from('profils_utilisateurs')
+          .select('nom_complet, cabinets(nom)')
+          .eq('id', user.id)
+          .single();
+        if (profil) setCabinetNom((profil.cabinets as any)?.nom || '');
+        const { data } = await supabase
           .from('dossiers')
-          .select('id, nom_client, statut, created_at, montant_pret')
-          .eq('cabinet_id', profil.cabinet_id)
-          .order('created_at', { ascending: false })
-
-        if (dossiers) {
-          setRecentDossiers(dossiers.slice(0, 5))
-          setStats({
-            totalDossiers: dossiers.length,
-            enCours: dossiers.filter(d => d.statut === 'en_cours' || d.statut === 'analyse').length,
-            accordes: dossiers.filter(d => d.statut === 'accorde').length,
-            enAttente: dossiers.filter(d => d.statut === 'en_attente').length,
-          })
-        }
+          .select('*')
+          .order('updated_at', { ascending: false });
+        setDossiers(data || []);
+      } catch (e) {
+        // silent
+      } finally {
+        setLoading(false);
       }
+    };
+    load();
+  }, [supabase]);
 
-      setLoading(false)
-    }
-    load()
-  }, [supabase])
+  const total = dossiers.length;
+  const actifs = dossiers.filter(d => ['en_cours', 'analyse'].includes(d.statut)).length;
+  const pretsBank = dossiers.filter(d => d.statut === 'accorde').length;
+  const aCorrect = dossiers.filter(d => d.statut === 'en_attente' || (d.score_global && d.score_global < 40)).length;
+  const avgScore = dossiers.filter(d => d.score_global).length > 0
+    ? Math.round(dossiers.reduce((s, d) => s + (d.score_global || 0), 0) / dossiers.filter(d => d.score_global).length)
+    : 0;
+  const volumeTotal = dossiers.reduce((s, d) => s + (d.montant_projet || 0), 0);
+  const montantMoyen = total > 0 ? Math.round(volumeTotal / total) : 0;
 
-  const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Bonjour' : hour < 18 ? 'Bon après-midi' : 'Bonsoir'
+  const prioritaires = dossiers.filter(d =>
+    d.statut === 'en_attente' || (d.score_global && d.score_global < 45)
+  ).slice(0, 5);
+  const recent = dossiers.slice(0, 8);
 
-  const statCards = [
-    {
-      label: 'Total Dossiers',
-      value: stats.totalDossiers,
-      icon: 'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z',
-      bg: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
-      light: 'rgba(59,130,246,0.1)',
-    },
-    {
-      label: 'En cours',
-      value: stats.enCours,
-      icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
-      bg: 'linear-gradient(135deg, #f59e0b, #d97706)',
-      light: 'rgba(245,158,11,0.1)',
-    },
-    {
-      label: 'Accordés',
-      value: stats.accordes,
-      icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
-      bg: 'linear-gradient(135deg, #10b981, #059669)',
-      light: 'rgba(16,185,129,0.1)',
-    },
-    {
-      label: 'En attente',
-      value: stats.enAttente,
-      icon: 'M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z',
-      bg: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-      light: 'rgba(139,92,246,0.1)',
-    },
-  ]
-
-  const statusLabels: Record<string, { label: string; color: string; bg: string }> = {
-    en_cours: { label: 'En cours', color: '#d97706', bg: 'rgba(245,158,11,0.1)' },
-    accorde: { label: 'Accordé', color: '#059669', bg: 'rgba(16,185,129,0.1)' },
-    refuse: { label: 'Refusé', color: '#dc2626', bg: 'rgba(220,38,38,0.1)' },
-    en_attente: { label: 'En attente', color: '#6b7280', bg: 'rgba(107,114,128,0.1)' },
-    analyse: { label: 'Analyse', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
-  }
+  const kpis = [
+    { label: 'Total dossiers', value: total, icon: '◧', color: 'var(--brand-blue)' },
+    { label: 'Dossiers actifs', value: actifs, icon: '◉', color: 'var(--risk-low)' },
+    { label: 'Accordés banque', value: pretsBank, icon: '✓', color: 'var(--risk-low)' },
+    { label: 'À corriger', value: aCorrect, icon: '⚠', color: 'var(--risk-high)' },
+    { label: 'Score moyen', value: avgScore ? avgScore + '/100' : '—', icon: '◈', color: getScoreColor(avgScore) },
+    { label: 'Volume total', value: formatCurrency(volumeTotal), icon: '€', color: 'var(--brand-blue)' },
+    { label: 'Montant moyen', value: formatCurrency(montantMoyen), icon: '≈', color: '#64748b' },
+    { label: 'En analyse', value: dossiers.filter(d => d.statut === 'analyse').length, icon: '⊕', color: '#8b5cf6' },
+  ];
 
   return (
-    <div className="p-8 space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="page-container">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            {greeting}, <span style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{userInfo.name.split(' ')[0]}</span> 👋
-          </h1>
-          <p className="text-slate-500 mt-1">{userInfo.cabinet} — Voici un aperçu de votre activité</p>
+          <h1 className="page-title">Tableau de bord</h1>
+          <p className="page-subtitle">{cabinetNom ? `${cabinetNom} · ` : ''}Vue d'ensemble de votre activité</p>
         </div>
-        <Link
-          href="/dossiers/nouveau"
-          className="cortia-button-primary px-5 py-2.5 text-sm font-medium"
-        >
+        <Link href="/dossiers/nouveau" className="btn-primary">
           + Nouveau dossier
         </Link>
       </div>
 
-      {/* Stats cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statCards.map((card) => (
-          <div key={card.label} className="cortia-stat-card">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: card.light }}>
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" style={{ stroke: card.bg.includes('3b82f6') ? '#3b82f6' : card.bg.includes('f59e0b') ? '#f59e0b' : card.bg.includes('10b981') ? '#10b981' : '#8b5cf6' }}>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={card.icon} />
-                </svg>
-              </div>
-              <span className="text-3xl font-bold text-slate-900">{loading ? '—' : card.value}</span>
-            </div>
-            <p className="text-sm font-medium text-slate-500">{card.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Recent dossiers */}
-      <div className="cortia-card">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-slate-900">Dossiers récents</h2>
-          <Link href="/dossiers" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-            Voir tous →
-          </Link>
+      {loading ? (
+        <div className="loading-container">
+          <div className="loading-spinner" />
+          <p>Chargement...</p>
         </div>
-
-        {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="skeleton h-14 rounded-xl" />
+      ) : (
+        <>
+          {/* KPIs */}
+          <div className="kpi-grid">
+            {kpis.map((kpi, i) => (
+              <div key={i} className="kpi-card">
+                <div className="kpi-header">
+                  <span className="kpi-label">{kpi.label}</span>
+                  <span style={{ fontSize: '1.1rem', color: kpi.color }}>{kpi.icon}</span>
+                </div>
+                <div className="kpi-value" style={{ color: kpi.color }}>{kpi.value}</div>
+              </div>
             ))}
           </div>
-        ) : recentDossiers.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'rgba(59,130,246,0.1)' }}>
-              <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-              </svg>
-            </div>
-            <h3 className="text-slate-700 font-semibold mb-1">Aucun dossier pour l&apos;instant</h3>
-            <p className="text-slate-500 text-sm mb-4">Créez votre premier dossier client pour commencer</p>
-            <Link href="/dossiers/nouveau" className="cortia-button-primary px-4 py-2 text-sm">
-              Créer un dossier
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {recentDossiers.map((d) => {
-              const s = statusLabels[d.statut] || { label: d.statut, color: '#6b7280', bg: 'rgba(107,114,128,0.1)' }
-              return (
-                <Link key={d.id} href={`/dossiers/${d.id}`} className="cortia-table-row flex items-center gap-4">
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0" style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' }}>
-                    {d.nom_client?.charAt(0).toUpperCase() || '?'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-slate-900 truncate">{d.nom_client}</p>
-                    <p className="text-xs text-slate-500">{new Date(d.created_at).toLocaleDateString('fr-FR')}</p>
-                  </div>
-                  {d.montant_pret && (
-                    <span className="text-sm font-semibold text-slate-700 hidden sm:block">
-                      {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(d.montant_pret)}
-                    </span>
-                  )}
-                  <span className="text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0" style={{ color: s.color, background: s.bg }}>
-                    {s.label}
-                  </span>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginTop: '1.5rem' }}>
+            {/* Dossiers prioritaires */}
+            <div className="card">
+              <div className="card-header">
+                <h2 className="card-title">⚠ Dossiers prioritaires</h2>
+                <span className="badge badge-warning">{prioritaires.length}</span>
+              </div>
+              {prioritaires.length === 0 ? (
+                <div className="empty-state" style={{ padding: '2rem 0' }}>
+                  <p>Aucun dossier nécessitant une attention immédiate</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {prioritaires.map(d => (
+                    <Link key={d.id} href={`/dossiers/${d.id}`} style={{ textDecoration: 'none' }}>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '0.75rem 1rem', background: 'var(--surface-secondary)', borderRadius: '0.5rem',
+                        border: '1px solid var(--border-primary)', cursor: 'pointer',
+                        transition: 'border-color 0.15s'
+                      }}>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--text-primary)' }}>
+                            {d.nom_client || 'Client inconnu'}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
+                            {d.reference || d.id.slice(0, 8).toUpperCase()} · {formatCurrency(d.montant_projet)}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          {d.score_global ? (
+                            <span style={{
+                              fontSize: '0.8rem', fontWeight: 700, color: getScoreColor(d.score_global)
+                            }}>{d.score_global}/100</span>
+                          ) : null}
+                          <span className={`badge ${STATUT_CLASSES[d.statut] || 'badge-neutral'}`}>
+                            {STATUT_LABELS[d.statut] || d.statut}
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+              <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-primary)' }}>
+                <Link href="/dossiers" style={{ fontSize: '0.8rem', color: 'var(--brand-blue)', textDecoration: 'none' }}>
+                  Voir tous les dossiers →
                 </Link>
-              )
-            })}
+              </div>
+            </div>
+
+            {/* Activité récente */}
+            <div className="card">
+              <div className="card-header">
+                <h2 className="card-title">◷ Activité récente</h2>
+                <Link href="/dossiers" className="badge badge-neutral" style={{ textDecoration: 'none' }}>
+                  Tous
+                </Link>
+              </div>
+              {recent.length === 0 ? (
+                <div className="empty-state" style={{ padding: '2rem 0' }}>
+                  <p>Aucun dossier récent</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {recent.map(d => (
+                    <Link key={d.id} href={`/dossiers/${d.id}`} style={{ textDecoration: 'none' }}>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '0.625rem 0.875rem', background: 'var(--surface-secondary)', borderRadius: '0.5rem',
+                        border: '1px solid var(--border-primary)', cursor: 'pointer'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <div style={{
+                            width: '2rem', height: '2rem', borderRadius: '50%',
+                            background: 'var(--brand-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '0.75rem', fontWeight: 700, color: 'white', flexShrink: 0
+                          }}>
+                            {(d.nom_client || 'C').charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-primary)' }}>
+                              {d.nom_client || 'Client inconnu'}
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                              {formatCurrency(d.montant_projet)}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem' }}>
+                          <span className={`badge ${STATUT_CLASSES[d.statut] || 'badge-neutral'}`} style={{ fontSize: '0.65rem' }}>
+                            {STATUT_LABELS[d.statut] || d.statut}
+                          </span>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                            {timeAgo(d.updated_at)}
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
-  )
+  );
 }
