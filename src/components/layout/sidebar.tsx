@@ -56,16 +56,14 @@ export function Sidebar() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data: profil } = await supabase
-          .from('profil_utilisateur')
-          .select('nom_complet, cabinets(nom_cabinet)')
-          .eq('user_id', user.id)
+          .from('profils_utilisateurs')
+          .select('nom_complet, cabinet_id')
+          .eq('id', user.id)
           .single()
-        
         if (profil) {
-          const nom = profil.nom_complet || user.email || 'Courtier'
-          const cabinet = (profil.cabinets as any)?.nom_cabinet || 'Mon Cabinet'
-          const initials = nom.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
-          setUserInfo({ name: nom, cabinet, initials })
+          const name = profil.nom_complet || user.email || 'Courtier'
+          const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
+          setUserInfo({ name, cabinet: 'Mon Cabinet', initials })
         }
       }
     }
@@ -103,7 +101,7 @@ export function Sidebar() {
               href={item.href}
               className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
             >
-              <span className={isActive ? 'text-blue-400' : ''} style={{color: isActive ? '#60a5fa' : 'rgba(148,163,184,0.8)'}}>
+              <span style={{color: isActive ? '#60a5fa' : 'rgba(148,163,184,0.8)'}}>
                 {item.icon}
               </span>
               <span>{item.name}</span>
