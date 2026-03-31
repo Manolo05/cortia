@@ -13,7 +13,7 @@ const navItems = [
   { href: '/parametres', icon: '⊙', label: 'Paramètres' },
 ];
 
-export default function Sidebar() {
+export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClientComponentClient();
