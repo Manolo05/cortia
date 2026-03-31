@@ -2,404 +2,351 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 
-interface Emprunteur {
+interface Projet {
   id: string
-  prenom: string
-  nom: string
-  est_co_emprunteur: boolean
-  type_contrat?: string
-  employeur?: string
-  salaire_net_mensuel?: number
-  autres_revenus?: number
-  revenus_locatifs?: number
-  credits_en_cours?: number
-  pension_versee?: number
-  autres_charges?: number
-  epargne?: number
-  valeur_patrimoine_immo?: number
-  email?: string
-  telephone?: string
+  dossier_id: string
+  type_bien: string
+  adresse?: string
+  ville?: string
+  code_postal?: string
+  prix_achat: number
+  travaux?: number
+  frais_notaire?: number
+  apport?: number
+  duree_souhaitee?: number
+  taux_estime?: number
+  usage?: string
+  description?: string
 }
 
-function formatMontant(v?: number) {
-  if (!v) return '-'
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v)
+const DEFAULT_FORM = {
+  type_bien: 'Appartement',
+  adresse: '',
+  ville: '',
+  code_postal: '',
+  prix_achat: '',
+  travaux: '',
+  frais_notaire: '',
+  apport: '',
+  duree_souhaitee: '240',
+  taux_estime: '',
+  usage: 'Residence principale',
+  description: '',
 }
 
-const CONTRATS = ['CDI', 'CDD', 'Fonctionnaire', 'Independant', 'Liberal', 'Gerant', 'Retraite']
-
-const CONTRAT_LABELS: Record<string, string> = {
-  CDI: 'CDI',
-  CDD: 'CDD',
-  Fonctionnaire: 'Fonctionnaire',
-  Independant: 'Independant',
-  Liberal: 'Profession liberale',
-  Gerant: 'Gerant',
-  Retraite: 'Retraite',
+function formatMontant(n?: number) {
+  if (!n) return '0 EUR'
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
 }
 
-const CONTRAT_COLORS: Record<string, string> = {
-  CDI: '#16a34a',
-  CDD: '#d97706',
-  Fonctionnaire: '#2563eb',
-  Independant: '#7c3aed',
-  Liberal: '#0891b2',
-  Gerant: '#be185d',
-  Retraite: '#64748b',
+function calcMensualite(capital: number, taux: number, duree: number): number {
+  if (!capital || !taux || !duree) return 0
+  const r = taux / 100 / 12
+  return (capital * r) / (1 - Math.pow(1 + r, -duree))
 }
 
-export default function EmprunteursPage() {
+export default function ProjetPage() {
   const params = useParams()
   const dossierId = params.id as string
-  const [emprunteurs, setEmprunteurs] = useState<Emprunteur[]>([])
+
+  const [projet, setProjet] = useState<Projet | null>(null)
   const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [formData, setFormData] = useState<any>(DEFAULT_FORM)
   const [saving, setSaving] = useState(false)
-  const [formData, setFormData] = useState<any>({
-    prenom: '',
-    nom: '',
-    est_co_emprunteur: false,
-    type_contrat: 'CDI',
-    employeur: '',
-    salaire_net_mensuel: '',
-    autres_revenus: '',
-    revenus_locatifs: '',
-    credits_en_cours: '',
-    pension_versee: '',
-    autres_charges: '',
-    epargne: '',
-    valeur_patrimoine_immo: '',
-    email: '',
-    telephone: '',
-  })
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => { fetchEmprunteurs() }, [dossierId])
+  useEffect(() => {
+    fetchProjet()
+  }, [dossierId])
 
-  async function fetchEmprunteurs() {
+  async function fetchProjet() {
     setLoading(true)
-    try {
-      const res = await fetch('/api/dossiers/' + dossierId + '/emprunteurs')
-      if (res.ok) {
-        const data = await res.json()
-        setEmprunteurs(data)
-        if (data.length === 0) setShowForm(true)
+    const res = await fetch(`/api/dossiers/${dossierId}/projet`)
+    if (res.ok) {
+      const data = await res.json()
+      setProjet(data || null)
+      if (!data) setEditing(true)
+      else {
+        setFormData({
+          ...data,
+          prix_achat: data.prix_achat || '',
+          travaux: data.travaux || '',
+          frais_notaire: data.frais_notaire || '',
+          apport: data.apport || '',
+          duree_souhaitee: data.duree_souhaitee || '240',
+          taux_estime: data.taux_estime || '',
+        })
       }
-    } catch (e) {}
+    } else {
+      setEditing(true)
+    }
     setLoading(false)
   }
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
-    const { name, value, type } = e.target
-    setFormData((prev: any) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
-    }))
+  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
+    const { name, value } = e.target
+    setFormData((prev: any) => ({ ...prev, [name]: value }))
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
+    setError(null)
+
     const payload = {
       ...formData,
       dossier_id: dossierId,
-      salaire_net_mensuel: formData.salaire_net_mensuel ? parseFloat(formData.salaire_net_mensuel) : null,
-      autres_revenus: formData.autres_revenus ? parseFloat(formData.autres_revenus) : 0,
-      revenus_locatifs: formData.revenus_locatifs ? parseFloat(formData.revenus_locatifs) : 0,
-      credits_en_cours: formData.credits_en_cours ? parseFloat(formData.credits_en_cours) : 0,
-      pension_versee: formData.pension_versee ? parseFloat(formData.pension_versee) : 0,
-      autres_charges: formData.autres_charges ? parseFloat(formData.autres_charges) : 0,
-      epargne: formData.epargne ? parseFloat(formData.epargne) : 0,
-      valeur_patrimoine_immo: formData.valeur_patrimoine_immo ? parseFloat(formData.valeur_patrimoine_immo) : 0,
+      prix_achat: formData.prix_achat ? parseFloat(formData.prix_achat) : 0,
+      travaux: formData.travaux ? parseFloat(formData.travaux) : 0,
+      frais_notaire: formData.frais_notaire ? parseFloat(formData.frais_notaire) : 0,
+      apport: formData.apport ? parseFloat(formData.apport) : 0,
+      duree_souhaitee: formData.duree_souhaitee ? parseInt(formData.duree_souhaitee) : 240,
+      taux_estime: formData.taux_estime ? parseFloat(formData.taux_estime) : null,
     }
-    const url = editingId
-      ? '/api/dossiers/' + dossierId + '/emprunteurs?emprunteurId=' + editingId
-      : '/api/dossiers/' + dossierId + '/emprunteurs'
-    const method = editingId ? 'PATCH' : 'POST'
+
+    const method = projet ? 'PATCH' : 'POST'
+    const url = projet
+      ? `/api/dossiers/${dossierId}/projet?projetId=${projet.id}`
+      : `/api/dossiers/${dossierId}/projet`
+
     const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
+
     if (res.ok) {
-      await fetchEmprunteurs()
-      resetForm()
+      await fetchProjet()
+      setEditing(false)
+    } else {
+      setError('Erreur lors de la sauvegarde. Veuillez reessayer.')
     }
     setSaving(false)
   }
 
-  function resetForm() {
-    setFormData({
-      prenom: '', nom: '', est_co_emprunteur: false, type_contrat: 'CDI',
-      employeur: '', salaire_net_mensuel: '', autres_revenus: '',
-      revenus_locatifs: '', credits_en_cours: '', pension_versee: '',
-      autres_charges: '', epargne: '', valeur_patrimoine_immo: '',
-      email: '', telephone: '',
-    })
-    setShowForm(false)
-    setEditingId(null)
-  }
+  // Calculs projet
+  const prixAchat = parseFloat(formData.prix_achat) || projet?.prix_achat || 0
+  const travaux = parseFloat(formData.travaux) || projet?.travaux || 0
+  const fraisNotaire = parseFloat(formData.frais_notaire) || projet?.frais_notaire || prixAchat * 0.075
+  const apport = parseFloat(formData.apport) || projet?.apport || 0
+  const duree = parseInt(formData.duree_souhaitee) || projet?.duree_souhaitee || 240
+  const taux = parseFloat(formData.taux_estime) || projet?.taux_estime || 3.5
 
-  function editEmprunteur(e: Emprunteur) {
-    setFormData({
-      ...e,
-      salaire_net_mensuel: e.salaire_net_mensuel || '',
-      autres_revenus: (e as any).autres_revenus || '',
-      revenus_locatifs: (e as any).revenus_locatifs || '',
-      credits_en_cours: e.credits_en_cours || '',
-      pension_versee: (e as any).pension_versee || '',
-      autres_charges: (e as any).autres_charges || '',
-      epargne: (e as any).epargne || '',
-      valeur_patrimoine_immo: (e as any).valeur_patrimoine_immo || '',
-    })
-    setEditingId(e.id)
-    setShowForm(true)
-  }
-
-  const totalRevenus = emprunteurs.reduce((sum, e) => {
-    const s = e.salaire_net_mensuel || 0
-    const a = (e as any).autres_revenus || 0
-    const l = (e as any).revenus_locatifs || 0
-    return sum + s + a + l
-  }, 0)
-  const totalCharges = emprunteurs.reduce((sum, e) => {
-    return sum + (e.credits_en_cours || 0) + ((e as any).pension_versee || 0) + ((e as any).autres_charges || 0)
-  }, 0)
+  const coutTotal = prixAchat + travaux + fraisNotaire
+  const besoinFinancement = Math.max(0, coutTotal - apport)
+  const mensualiteEstimee = calcMensualite(besoinFinancement, taux, duree)
+  const ratioApport = prixAchat > 0 ? (apport / coutTotal) * 100 : 0
 
   if (loading) {
     return (
-      <div className="page-container">
-        <div className="loading-container">
-          <div className="loading-spinner" />
-          <p>Chargement des emprunteurs...</p>
-        </div>
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>Chargement du projet...</p>
       </div>
     )
   }
 
   return (
     <div className="page-container">
-      <div className="page-header" style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <div>
-            <h2 className="page-title">Emprunteurs</h2>
-            <p className="page-subtitle">
-              {emprunteurs.length === 0
-                ? 'Aucun emprunteur - ajoutez le profil financier'
-                : emprunteurs.length === 1
-                  ? '1 emprunteur enregistre'
-                  : emprunteurs.length + ' emprunteurs enregistres'}
-            </p>
-          </div>
-          {!showForm && emprunteurs.length > 0 && (
-            <button onClick={() => setShowForm(true)} className="btn-primary">
-              + {emprunteurs.length > 0 ? 'Ajouter co-emprunteur' : 'Ajouter emprunteur'}
-            </button>
-          )}
+      {/* Header */}
+      <div className="page-header">
+        <div>
+          <h2 className="page-title">Projet immobilier</h2>
+          <p className="page-subtitle">
+            {projet ? `${projet.type_bien} - ${projet.ville || 'Localisation non renseignee'}` : 'Aucun projet defini'}
+          </p>
         </div>
+        {projet && !editing && (
+          <button onClick={() => setEditing(true)} className="btn-primary">
+            Modifier
+          </button>
+        )}
       </div>
 
-      {emprunteurs.length > 0 && (
-        <div className="kpi-grid" style={{ marginBottom: '24px' }}>
+      {error && (
+        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '12px 16px', color: '#DC2626', fontSize: '14px', marginBottom: '16px' }}>
+          {error}
+        </div>
+      )}
+
+      {/* Synthese financiere (toujours visible si donnees dispo) */}
+      {(prixAchat > 0) && (
+        <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '24px' }}>
           <div className="kpi-card">
-            <div className="kpi-label">Revenus totaux</div>
-            <div className="kpi-value" style={{ color: '#16a34a' }}>{formatMontant(totalRevenus)}<span style={{ fontSize: '14px', fontWeight: 400, color: '#64748b' }}>/mois</span></div>
+            <div className="kpi-label">Cout total projet</div>
+            <div className="kpi-value" style={{ fontSize: '18px' }}>{formatMontant(coutTotal)}</div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-label">Charges totales</div>
-            <div className="kpi-value" style={{ color: '#ef4444' }}>{formatMontant(totalCharges)}<span style={{ fontSize: '14px', fontWeight: 400, color: '#64748b' }}>/mois</span></div>
+            <div className="kpi-label">Besoin de financement</div>
+            <div className="kpi-value" style={{ fontSize: '18px' }}>{formatMontant(besoinFinancement)}</div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-label">Capacite nette</div>
-            <div className="kpi-value" style={{ color: totalRevenus - totalCharges > 0 ? '#2563eb' : '#ef4444' }}>
-              {formatMontant(totalRevenus - totalCharges)}<span style={{ fontSize: '14px', fontWeight: 400, color: '#64748b' }}>/mois</span>
+            <div className="kpi-label">Mensualite estimee</div>
+            <div className="kpi-value" style={{ fontSize: '18px' }}>{formatMontant(mensualiteEstimee)}<span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--gray-500)' }}>/mois</span></div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Ratio apport</div>
+            <div className="kpi-value" style={{ fontSize: '18px', color: ratioApport >= 10 ? '#059669' : '#DC2626' }}>
+              {ratioApport.toFixed(1)}%
             </div>
-          </div>
-          <div className="kpi-card">
-            <div className="kpi-label">Emprunteurs</div>
-            <div className="kpi-value">{emprunteurs.length}</div>
           </div>
         </div>
       )}
 
-      {emprunteurs.map((emp) => {
-        const totalRev = (emp.salaire_net_mensuel || 0) + ((emp as any).autres_revenus || 0) + ((emp as any).revenus_locatifs || 0)
-        const totalCh = (emp.credits_en_cours || 0) + ((emp as any).pension_versee || 0) + ((emp as any).autres_charges || 0)
-        const contratColor = CONTRAT_COLORS[emp.type_contrat || 'CDI'] || '#64748b'
-        const contratLabel = CONTRAT_LABELS[emp.type_contrat || 'CDI'] || emp.type_contrat || '-'
-        return (
-          <div key={emp.id} className="card" style={{ marginBottom: '16px' }}>
-            <div className="card-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <div style={{
-                  width: '44px', height: '44px', borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #2563eb, #4f46e5)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#fff', fontWeight: 700, fontSize: '16px', flexShrink: 0
-                }}>
-                  {emp.prenom?.[0]?.toUpperCase()}{emp.nom?.[0]?.toUpperCase()}
-                </div>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontWeight: 700, fontSize: '16px', color: '#0f172a' }}>{emp.prenom} {emp.nom}</span>
-                    <span className={'badge ' + (emp.est_co_emprunteur ? 'badge-neutral' : 'badge-info')}>
-                      {emp.est_co_emprunteur ? 'Co-emprunteur' : 'Emprunteur principal'}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: contratColor, background: contratColor + '18', padding: '2px 8px', borderRadius: '10px' }}>
-                      {contratLabel}
-                    </span>
-                    {emp.employeur && (
-                      <span style={{ fontSize: '13px', color: '#64748b' }}>{emp.employeur}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => editEmprunteur(emp)}
-                style={{ fontSize: '13px', color: '#2563eb', background: 'transparent', border: '1px solid #2563eb', borderRadius: '6px', padding: '6px 14px', cursor: 'pointer', fontWeight: 500 }}
-              >
-                Modifier
-              </button>
+      {/* Vue synthese projet (mode lecture) */}
+      {projet && !editing && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div className="card">
+            <div className="card-header">
+              <h3 className="card-title">Bien immobilier</h3>
             </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginTop: '16px' }}>
-              <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '14px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Revenus mensuels</div>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: '#16a34a' }}>{formatMontant(totalRev)}</div>
-                {(emp.salaire_net_mensuel || 0) > 0 && <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>Salaire net: {formatMontant(emp.salaire_net_mensuel)}</div>}
-                {((emp as any).autres_revenus || 0) > 0 && <div style={{ fontSize: '12px', color: '#64748b' }}>Autres: {formatMontant((emp as any).autres_revenus)}</div>}
-                {((emp as any).revenus_locatifs || 0) > 0 && <div style={{ fontSize: '12px', color: '#64748b' }}>Locatifs: {formatMontant((emp as any).revenus_locatifs)}</div>}
-              </div>
-              <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '14px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Charges mensuelles</div>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: totalCh > 0 ? '#ef4444' : '#94a3b8' }}>{formatMontant(totalCh)}</div>
-                {(emp.credits_en_cours || 0) > 0 && <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>Credits: {formatMontant(emp.credits_en_cours)}</div>}
-                {((emp as any).pension_versee || 0) > 0 && <div style={{ fontSize: '12px', color: '#64748b' }}>Pension: {formatMontant((emp as any).pension_versee)}</div>}
-              </div>
-              <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '14px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Patrimoine</div>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: '#0f172a' }}>{formatMontant((emp as any).valeur_patrimoine_immo)}</div>
-                {((emp as any).epargne || 0) > 0 && <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>Epargne: {formatMontant((emp as any).epargne)}</div>}
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <InfoRow label="Type de bien" value={projet.type_bien} />
+              <InfoRow label="Usage" value={projet.usage || 'Non renseigne'} />
+              {projet.adresse && <InfoRow label="Adresse" value={projet.adresse} />}
+              {projet.ville && <InfoRow label="Ville" value={`${projet.ville}${projet.code_postal ? ' ' + projet.code_postal : ''}`} />}
+              {projet.description && <InfoRow label="Description" value={projet.description} />}
             </div>
-
-            {(emp.email || emp.telephone) && (
-              <div style={{ display: 'flex', gap: '20px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }}>
-                {emp.email && <span style={{ fontSize: '13px', color: '#475569' }}>Email: <strong>{emp.email}</strong></span>}
-                {emp.telephone && <span style={{ fontSize: '13px', color: '#475569' }}>Tel: <strong>{emp.telephone}</strong></span>}
-              </div>
-            )}
           </div>
-        )
-      })}
 
-      {showForm && (
-        <div className="card" style={{ marginTop: '16px' }}>
+          <div className="card">
+            <div className="card-header">
+              <h3 className="card-title">Montages financier</h3>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <InfoRow label="Prix d achat" value={formatMontant(projet.prix_achat)} highlight />
+              {projet.travaux > 0 && <InfoRow label="Travaux" value={formatMontant(projet.travaux)} />}
+              <InfoRow label="Frais de notaire" value={formatMontant(projet.frais_notaire || prixAchat * 0.075)} />
+              <InfoRow label="Apport personnel" value={formatMontant(projet.apport || 0)} highlight />
+              <InfoRow label="Duree souhaitee" value={`${(projet.duree_souhaitee || 240) / 12} ans (${projet.duree_souhaitee || 240} mois)`} />
+              {projet.taux_estime && <InfoRow label="Taux estime" value={`${projet.taux_estime}%`} />}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Formulaire edition */}
+      {editing && (
+        <div className="card">
           <div className="card-header">
-            <h3 className="card-title">
-              {editingId ? 'Modifier emprunteur' : emprunteurs.length === 0 ? 'Ajouter emprunteur principal' : 'Ajouter co-emprunteur'}
-            </h3>
+            <h3 className="card-title">{projet ? 'Modifier le projet' : 'Definir le projet immobilier'}</h3>
           </div>
-          <form onSubmit={handleSubmit}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-              <div className="form-group">
-                <label className="form-label">Prenom *</label>
-                <input name="prenom" value={formData.prenom} onChange={handleChange} className="form-input" required placeholder="Jean" />
+
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+            {/* Bien */}
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
+                Bien immobilier
               </div>
-              <div className="form-group">
-                <label className="form-label">Nom *</label>
-                <input name="nom" value={formData.nom} onChange={handleChange} className="form-input" required placeholder="Dupont" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Type de bien</label>
+                  <select name="type_bien" value={formData.type_bien} onChange={handleChange} className="form-select">
+                    <option value="Appartement">Appartement</option>
+                    <option value="Maison">Maison</option>
+                    <option value="Terrain">Terrain</option>
+                    <option value="Immeuble">Immeuble</option>
+                    <option value="Local commercial">Local commercial</option>
+                    <option value="Autre">Autre</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Usage</label>
+                  <select name="usage" value={formData.usage} onChange={handleChange} className="form-select">
+                    <option value="Residence principale">Residence principale</option>
+                    <option value="Residence secondaire">Residence secondaire</option>
+                    <option value="Investissement locatif">Investissement locatif</option>
+                  </select>
+                </div>
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label className="form-label">Adresse du bien</label>
+                  <input name="adresse" value={formData.adresse} onChange={handleChange} className="form-input" placeholder="12 rue de la Paix" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Ville</label>
+                  <input name="ville" value={formData.ville} onChange={handleChange} className="form-input" placeholder="Paris" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Code postal</label>
+                  <input name="code_postal" value={formData.code_postal} onChange={handleChange} className="form-input" placeholder="75001" />
+                </div>
               </div>
             </div>
 
-            {emprunteurs.length > 0 && !editingId && (
-              <div className="form-group" style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', color: '#374151' }}>
-                  <input type="checkbox" name="est_co_emprunteur" checked={formData.est_co_emprunteur} onChange={handleChange} style={{ width: '16px', height: '16px' }} />
-                  Co-emprunteur
-                </label>
+            {/* Montants */}
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
+                Montages financier
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Prix d achat (EUR) *</label>
+                  <input type="number" name="prix_achat" value={formData.prix_achat} onChange={handleChange} className="form-input" placeholder="250000" required min="0" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Travaux (EUR)</label>
+                  <input type="number" name="travaux" value={formData.travaux} onChange={handleChange} className="form-input" placeholder="0" min="0" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Frais de notaire (EUR)</label>
+                  <input type="number" name="frais_notaire" value={formData.frais_notaire} onChange={handleChange} className="form-input" placeholder="Auto si vide (7.5%)" min="0" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Apport personnel (EUR)</label>
+                  <input type="number" name="apport" value={formData.apport} onChange={handleChange} className="form-input" placeholder="25000" min="0" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Duree souhaitee (mois)</label>
+                  <select name="duree_souhaitee" value={formData.duree_souhaitee} onChange={handleChange} className="form-select">
+                    <option value="120">10 ans (120 mois)</option>
+                    <option value="180">15 ans (180 mois)</option>
+                    <option value="240">20 ans (240 mois)</option>
+                    <option value="300">25 ans (300 mois)</option>
+                    <option value="360">30 ans (360 mois)</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Taux estime (%)</label>
+                  <input type="number" name="taux_estime" value={formData.taux_estime} onChange={handleChange} className="form-input" placeholder="3.50" min="0" step="0.01" />
+                </div>
+              </div>
+            </div>
+
+            {/* Simulation en temps reel */}
+            {prixAchat > 0 && (
+              <div style={{
+                background: 'var(--blue-50)',
+                border: '1px solid var(--blue-200)',
+                borderRadius: '8px',
+                padding: '16px',
+              }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--brand-blue)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
+                  Simulation en temps reel
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+                  <SimBox label="Cout total" value={formatMontant(coutTotal)} />
+                  <SimBox label="Besoin financement" value={formatMontant(besoinFinancement)} />
+                  <SimBox label="Mensualite estimee" value={`${formatMontant(mensualiteEstimee)}/mois`} />
+                  <SimBox label="Ratio apport" value={`${ratioApport.toFixed(1)}%`} alert={ratioApport < 10} />
+                </div>
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-              <div className="form-group">
-                <label className="form-label">Type de contrat</label>
-                <select name="type_contrat" value={formData.type_contrat} onChange={handleChange} className="form-select">
-                  {CONTRATS.map(c => <option key={c} value={c}>{CONTRAT_LABELS[c]}</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Employeur / Entreprise</label>
-                <input name="employeur" value={formData.employeur} onChange={handleChange} className="form-input" placeholder="SNCF, Hopital, etc." />
-              </div>
+            {/* Description */}
+            <div className="form-group">
+              <label className="form-label">Notes / Description du projet</label>
+              <textarea name="description" value={formData.description} onChange={handleChange} className="form-textarea" rows={3} placeholder="Informations complementaires sur le projet..." />
             </div>
 
-            <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '16px', marginBottom: '16px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Revenus mensuels</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-                <div className="form-group">
-                  <label className="form-label">Salaire net mensuel (EUR)</label>
-                  <input type="number" name="salaire_net_mensuel" value={formData.salaire_net_mensuel} onChange={handleChange} className="form-input" placeholder="3500" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Autres revenus (EUR)</label>
-                  <input type="number" name="autres_revenus" value={formData.autres_revenus} onChange={handleChange} className="form-input" placeholder="0" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Revenus locatifs (EUR)</label>
-                  <input type="number" name="revenus_locatifs" value={formData.revenus_locatifs} onChange={handleChange} className="form-input" placeholder="0" />
-                </div>
-              </div>
-            </div>
-
-            <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '16px', marginBottom: '16px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Charges mensuelles</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-                <div className="form-group">
-                  <label className="form-label">Credits en cours (EUR/mois)</label>
-                  <input type="number" name="credits_en_cours" value={formData.credits_en_cours} onChange={handleChange} className="form-input" placeholder="0" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Pension versee (EUR/mois)</label>
-                  <input type="number" name="pension_versee" value={formData.pension_versee} onChange={handleChange} className="form-input" placeholder="0" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Autres charges (EUR/mois)</label>
-                  <input type="number" name="autres_charges" value={formData.autres_charges} onChange={handleChange} className="form-input" placeholder="0" />
-                </div>
-              </div>
-            </div>
-
-            <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '16px', marginBottom: '20px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Patrimoine et contact</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
-                <div className="form-group">
-                  <label className="form-label">Epargne disponible (EUR)</label>
-                  <input type="number" name="epargne" value={formData.epargne} onChange={handleChange} className="form-input" placeholder="0" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Patrimoine immo (EUR)</label>
-                  <input type="number" name="valeur_patrimoine_immo" value={formData.valeur_patrimoine_immo} onChange={handleChange} className="form-input" placeholder="0" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Email</label>
-                  <input type="email" name="email" value={formData.email} onChange={handleChange} className="form-input" placeholder="jean@email.com" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Telephone</label>
-                  <input type="tel" name="telephone" value={formData.telephone} onChange={handleChange} className="form-input" placeholder="06 12 34 56 78" />
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px' }}>
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '12px', paddingTop: '8px', borderTop: '1px solid var(--gray-200)' }}>
               <button type="submit" disabled={saving} className="btn-primary" style={{ opacity: saving ? 0.6 : 1 }}>
-                {saving ? 'Enregistrement...' : editingId ? 'Mettre a jour' : 'Enregistrer emprunteur'}
+                {saving ? 'Enregistrement...' : projet ? 'Mettre a jour' : 'Enregistrer le projet'}
               </button>
-              {emprunteurs.length > 0 && (
-                <button type="button" onClick={resetForm} className="btn-secondary">
+              {projet && (
+                <button type="button" onClick={() => setEditing(false)} className="btn-secondary">
                   Annuler
                 </button>
               )}
@@ -408,16 +355,34 @@ export default function EmprunteursPage() {
         </div>
       )}
 
-      {emprunteurs.length === 0 && !showForm && (
+      {!projet && !editing && (
         <div className="empty-state">
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>👤</div>
-          <h3 style={{ fontWeight: 600, marginBottom: '8px' }}>Aucun emprunteur</h3>
-          <p style={{ color: '#64748b', marginBottom: '20px' }}>Ajoutez le profil financier du demandeur</p>
-          <button onClick={() => setShowForm(true)} className="btn-primary">
-            + Ajouter emprunteur
+          <div style={{ fontSize: '48px', marginBottom: '12px' }}>🏠</div>
+          <h3>Aucun projet defini</h3>
+          <p>Definissez le projet immobilier pour lancer l analyse financiere</p>
+          <button onClick={() => setEditing(true)} className="btn-primary" style={{ marginTop: '16px' }}>
+            + Definir le projet
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+function InfoRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--gray-100)' }}>
+      <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{label}</span>
+      <span style={{ fontSize: '14px', fontWeight: highlight ? 700 : 500, color: highlight ? 'var(--gray-900)' : 'var(--gray-700)' }}>{value}</span>
+    </div>
+  )
+}
+
+function SimBox({ label, value, alert }: { label: string; value: string; alert?: boolean }) {
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginBottom: '4px' }}>{label}</div>
+      <div style={{ fontSize: '15px', fontWeight: 700, color: alert ? '#DC2626' : 'var(--brand-blue)' }}>{value}</div>
     </div>
   )
 }
