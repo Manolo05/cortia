@@ -1,50 +1,79 @@
 'use client'
-
 import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'next/navigation'
-import { formatTailleFichier, formatDate } from '@/lib/utils/format'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
-const TYPES_DOCUMENTS = [
-  { value: 'bulletin_salaire', label: 'Bulletin de salaire' },
-  { value: 'avis_imposition', label: 'Avis d\'imposition' },
-  { value: 'releve_compte', label: 'Relevé de compte' },
-  { value: 'justificatif_domicile', label: 'Justificatif de domicile' },
-  { value: 'piece_identite', label: 'Pièce d\'identité' },
-  { value: 'compromis_vente', label: 'Compromis de vente' },
-  { value: 'titre_propriete', label: 'Titre de propriété' },
-  { value: 'devis_travaux', label: 'Devis travaux' },
-  { value: 'autre', label: 'Autre' },
-]
-
-const STATUT_COLORS: Record<string, string> = {
-  en_attente: 'bg-yellow-100 text-yellow-700',
-  valide: 'bg-green-100 text-green-700',
-  refuse: 'bg-red-100 text-red-700',
-  a_remplacer: 'bg-orange-100 text-orange-700',
+interface Document {
+  id: string
+  dossier_id: string
+  nom: string
+  type: string
+  url?: string
+  taille?: number
+  statut?: string
+  created_at: string
 }
 
-const STATUT_LABELS: Record<string, string> = {
-  en_attente: 'En attente',
-  valide: '✅ Validé',
-  refuse: '❌ Refusé',
-  a_remplacer: '⚠️ À remplacer',
+const TYPES_DOCS = [
+  { value: 'identite', label: 'Piece d identite' },
+  { value: 'domicile', label: 'Justificatif de domicile' },
+  { value: 'fiche_paie', label: 'Fiche de paie' },
+  { value: 'avis_imposition', label: 'Avis d imposition' },
+  { value: 'releve_bancaire', label: 'Releve bancaire' },
+  { value: 'compromis', label: 'Compromis / Promesse de vente' },
+  { value: 'titre_propriete', label: 'Titre de propriete' },
+  { value: 'autre', label: 'Autre document' },
+]
+
+function getTypeLabel(type: string) {
+  return TYPES_DOCS.find(t => t.value === type)?.label || type
+}
+
+function getStatutBadge(statut?: string) {
+  switch (statut) {
+    case 'valide': return 'badge-success'
+    case 'a_verifier': return 'badge-warning'
+    case 'refuse': return 'badge-danger'
+    default: return 'badge-neutral'
+  }
+}
+
+function getStatutLabel(statut?: string) {
+  switch (statut) {
+    case 'valide': return 'Valide'
+    case 'a_verifier': return 'A verifier'
+    case 'refuse': return 'Refuse'
+    default: return 'En attente'
+  }
+}
+
+function formatTaille(bytes?: number) {
+  if (!bytes) return ''
+  if (bytes < 1024) return bytes + ' o'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' Ko'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' Mo'
 }
 
 export default function DocumentsPage() {
   const params = useParams()
   const dossierId = params.id as string
-  const [documents, setDocuments] = useState<any[]>([])
+  const supabase = createClientComponentClient()
+
+  const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
-  const [typeDoc, setTypeDoc] = useState('bulletin_salaire')
-  const fileRef = useRef<HTMLInputElement>(null)
+  const [showForm, setShowForm] = useState(false)
+  const [formData, setFormData] = useState({ nom: '', type: 'fiche_paie', statut: 'en_attente' })
+  const [error, setError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetchDocuments()
   }, [dossierId])
 
   async function fetchDocuments() {
-    const res = await fetch(`/api/documents?dossier_id=${dossierId}`)
+    setLoading(true)
+    const res = await fetch(`/api/dossiers/${dossierId}/documents`)
     if (res.ok) {
       const data = await res.json()
       setDocuments(data)
@@ -53,111 +82,304 @@ export default function DocumentsPage() {
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files
-    if (!files || files.length === 0) return
-
+    const file = e.target.files?.[0]
+    if (!file) return
+    
     setUploading(true)
-    for (const file of Array.from(files)) {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('dossier_id', dossierId)
-      fd.append('type_document', typeDoc)
+    setError(null)
 
-      await fetch('/api/documents', { method: 'POST', body: fd })
+    try {
+      const fileName = `${dossierId}/${Date.now()}_${file.name}`
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(fileName, file, { upsert: false })
+
+      if (uploadError) throw uploadError
+
+      const { data: urlData } = supabase.storage.from('documents').getPublicUrl(fileName)
+
+      const payload = {
+        dossier_id: dossierId,
+        nom: formData.nom || file.name,
+        type: formData.type,
+        statut: formData.statut,
+        url: urlData.publicUrl,
+        taille: file.size,
+      }
+
+      const res = await fetch(`/api/dossiers/${dossierId}/documents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (res.ok) {
+        await fetchDocuments()
+        setFormData({ nom: '', type: 'fiche_paie', statut: 'en_attente' })
+        setShowForm(false)
+      } else {
+        setError('Erreur lors de l enregistrement du document.')
+      }
+    } catch (err: any) {
+      // Fallback: save without file upload if storage not configured
+      const payload = {
+        dossier_id: dossierId,
+        nom: formData.nom || file.name,
+        type: formData.type,
+        statut: formData.statut,
+        taille: file.size,
+      }
+
+      const res = await fetch(`/api/dossiers/${dossierId}/documents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (res.ok) {
+        await fetchDocuments()
+        setFormData({ nom: '', type: 'fiche_paie', statut: 'en_attente' })
+        setShowForm(false)
+      } else {
+        setError('Erreur lors de l enregistrement.')
+      }
     }
-    await fetchDocuments()
+
     setUploading(false)
-    if (fileRef.current) fileRef.current.value = ''
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  async function addDocumentManual() {
+    setError(null)
+    if (!formData.nom) {
+      setError('Le nom du document est requis.')
+      return
+    }
+
+    const payload = {
+      dossier_id: dossierId,
+      nom: formData.nom,
+      type: formData.type,
+      statut: formData.statut,
+    }
+
+    const res = await fetch(`/api/dossiers/${dossierId}/documents`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    if (res.ok) {
+      await fetchDocuments()
+      setFormData({ nom: '', type: 'fiche_paie', statut: 'en_attente' })
+      setShowForm(false)
+    } else {
+      setError('Erreur lors de l enregistrement.')
+    }
   }
 
   async function updateStatut(docId: string, statut: string) {
-    await fetch(`/api/documents/${docId}`, {
+    await fetch(`/api/dossiers/${dossierId}/documents?documentId=${docId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ statut_verification: statut }),
+      body: JSON.stringify({ statut }),
     })
-    await fetchDocuments()
+    fetchDocuments()
   }
 
-  if (loading) return <div className="p-6 text-center text-gray-500">Chargement...</div>
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>Chargement des documents...</p>
+      </div>
+    )
+  }
+
+  const typesComplets = TYPES_DOCS.filter(t => 
+    t.value !== 'autre' && documents.some(d => d.type === t.value)
+  )
+  const typeManquants = TYPES_DOCS.filter(t => 
+    t.value !== 'autre' && !documents.some(d => d.type === t.value)
+  )
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <h2 className="text-xl font-bold text-gray-900">Documents</h2>
+    <div className="page-container">
+      {/* Header */}
+      <div className="page-header">
+        <div>
+          <h2 className="page-title">Documents</h2>
+          <p className="page-subtitle">
+            {documents.length} document{documents.length !== 1 ? 's' : ''} enregistre{documents.length !== 1 ? 's' : ''}
+            {typeManquants.length > 0 && ` · ${typeManquants.length} type(s) manquant(s)`}
+          </p>
+        </div>
+        <button onClick={() => setShowForm(!showForm)} className="btn-primary">
+          + Ajouter un document
+        </button>
+      </div>
 
-      {/* Zone d'upload */}
-      <div className="cortia-card p-6">
-        <h3 className="font-semibold text-gray-800 mb-4">Ajouter des documents</h3>
-        <div className="flex gap-4 items-end">
-          <div className="flex-1">
-            <label className="cortia-label">Type de document</label>
-            <select value={typeDoc} onChange={e => setTypeDoc(e.target.value)} className="cortia-input">
-              {TYPES_DOCUMENTS.map(t => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
+      {error && (
+        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '12px 16px', color: '#DC2626', fontSize: '14px', marginBottom: '16px' }}>
+          {error}
+        </div>
+      )}
+
+      {/* Checklist types */}
+      {typeManquants.length > 0 && (
+        <div className="card" style={{ marginBottom: '24px' }}>
+          <div className="card-header">
+            <h3 className="card-title" style={{ color: '#D97706' }}>Documents a fournir</h3>
           </div>
-          <div>
-            <input
-              ref={fileRef}
-              type="file"
-              multiple
-              accept=".pdf,.jpg,.jpeg,.png,.webp"
-              onChange={handleUpload}
-              className="hidden"
-              id="file-upload"
-            />
-            <label
-              htmlFor="file-upload"
-              className={`cortia-button-primary cursor-pointer ${uploading ? 'opacity-50' : ''}`}
-            >
-              {uploading ? 'Upload...' : '📎 Sélectionner fichiers'}
-            </label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {typeManquants.map(t => (
+              <span key={t.value} style={{
+                padding: '4px 12px', borderRadius: '20px', fontSize: '13px',
+                background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A',
+                display: 'flex', alignItems: 'center', gap: '6px'
+              }}>
+                <span>⚠️</span> {t.label}
+              </span>
+            ))}
           </div>
         </div>
-        <p className="text-xs text-gray-400 mt-2">PDF, JPG, PNG acceptés · Max 10 Mo par fichier</p>
-      </div>
+      )}
+
+      {/* Formulaire ajout */}
+      {showForm && (
+        <div className="card" style={{ marginBottom: '24px' }}>
+          <div className="card-header">
+            <h3 className="card-title">Ajouter un document</h3>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+              <div className="form-group">
+                <label className="form-label">Type de document</label>
+                <select
+                  value={formData.type}
+                  onChange={e => setFormData(p => ({ ...p, type: e.target.value }))}
+                  className="form-select"
+                >
+                  {TYPES_DOCS.map(t => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Nom / Reference</label>
+                <input
+                  value={formData.nom}
+                  onChange={e => setFormData(p => ({ ...p, nom: e.target.value }))}
+                  className="form-input"
+                  placeholder="Ex: Fiche paie mars 2024"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Statut</label>
+                <select
+                  value={formData.statut}
+                  onChange={e => setFormData(p => ({ ...p, statut: e.target.value }))}
+                  className="form-select"
+                >
+                  <option value="en_attente">En attente</option>
+                  <option value="a_verifier">A verifier</option>
+                  <option value="valide">Valide</option>
+                  <option value="refuse">Refuse</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '8px 16px', borderRadius: '8px',
+                background: 'var(--gray-100)', border: '1px dashed var(--gray-300)',
+                cursor: 'pointer', fontSize: '13px', color: 'var(--gray-600)',
+                fontWeight: 500
+              }}>
+                <span>📎</span>
+                {uploading ? 'Telechargement...' : 'Choisir un fichier'}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  onChange={handleUpload}
+                  style={{ display: 'none' }}
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                />
+              </label>
+              <span style={{ color: 'var(--gray-400)', fontSize: '13px' }}>ou</span>
+              <button onClick={addDocumentManual} className="btn-primary" style={{ fontSize: '13px' }}>
+                Enregistrer sans fichier
+              </button>
+              <button onClick={() => { setShowForm(false); setError(null) }} className="btn-secondary" style={{ fontSize: '13px' }}>
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Liste documents */}
       {documents.length > 0 ? (
-        <div className="cortia-card overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+        <div className="card">
+          <table className="data-table">
+            <thead>
               <tr>
-                <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase">Document</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase">Type</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase">Taille</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase">Statut</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th>Document</th>
+                <th>Type</th>
+                <th>Taille</th>
+                <th>Date</th>
+                <th>Statut</th>
+                <th>Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
-              {documents.map((doc: any) => (
-                <tr key={doc.id} className="hover:bg-gray-50">
-                  <td className="px-5 py-3">
-                    <span className="text-sm font-medium text-gray-900">{doc.nom_fichier}</span>
+            <tbody>
+              {documents.map(doc => (
+                <tr key={doc.id}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '18px' }}>📄</span>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--gray-900)' }}>{doc.nom}</div>
+                        {doc.url && (
+                          <a href={doc.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px', color: 'var(--brand-blue)' }}>
+                            Voir le fichier
+                          </a>
+                        )}
+                      </div>
+                    </div>
                   </td>
-                  <td className="px-5 py-3">
-                    <span className="text-sm text-gray-600">
-                      {TYPES_DOCUMENTS.find(t => t.value === doc.type_document)?.label || doc.type_document}
+                  <td>
+                    <span style={{ fontSize: '13px', color: 'var(--gray-600)' }}>{getTypeLabel(doc.type)}</span>
+                  </td>
+                  <td>
+                    <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{formatTaille(doc.taille) || '-'}</span>
+                  </td>
+                  <td>
+                    <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
+                      {new Date(doc.created_at).toLocaleDateString('fr-FR')}
                     </span>
                   </td>
-                  <td className="px-5 py-3 text-sm text-gray-500">
-                    {doc.taille_fichier ? formatTailleFichier(doc.taille_fichier) : '—'}
+                  <td>
+                    <span className={`badge ${getStatutBadge(doc.statut)}`}>
+                      {getStatutLabel(doc.statut)}
+                    </span>
                   </td>
-                  <td className="px-5 py-3">
+                  <td>
                     <select
-                      value={doc.statut_verification}
+                      value={doc.statut || 'en_attente'}
                       onChange={e => updateStatut(doc.id, e.target.value)}
-                      className={`text-xs font-medium rounded-full px-2 py-1 border-0 ${STATUT_COLORS[doc.statut_verification]}`}
+                      style={{
+                        fontSize: '12px', padding: '4px 8px', borderRadius: '6px',
+                        border: '1px solid var(--gray-200)', background: 'white',
+                        color: 'var(--gray-700)', cursor: 'pointer'
+                      }}
                     >
-                      {Object.entries(STATUT_LABELS).map(([val, label]) => (
-                        <option key={val} value={val}>{label}</option>
-                      ))}
+                      <option value="en_attente">En attente</option>
+                      <option value="a_verifier">A verifier</option>
+                      <option value="valide">Valide</option>
+                      <option value="refuse">Refuse</option>
                     </select>
-                  </td>
-                  <td className="px-5 py-3 text-sm text-gray-400">
-                    {formatDate(doc.created_at)}
                   </td>
                 </tr>
               ))}
@@ -165,9 +387,13 @@ export default function DocumentsPage() {
           </table>
         </div>
       ) : (
-        <div className="cortia-card p-12 text-center">
-          <div className="text-4xl mb-3">📁</div>
-          <p className="text-gray-500">Aucun document uploadé</p>
+        <div className="empty-state">
+          <div style={{ fontSize: '48px', marginBottom: '12px' }}>📂</div>
+          <h3>Aucun document</h3>
+          <p>Ajoutez les pieces justificatives du dossier pour effectuer le controle documentaire</p>
+          <button onClick={() => setShowForm(true)} className="btn-primary" style={{ marginTop: '16px' }}>
+            + Ajouter un document
+          </button>
         </div>
       )}
     </div>
