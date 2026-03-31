@@ -1,25 +1,17 @@
 {
-  "framework": "nextjs",
-  "buildCommand": "next build",
-  "devCommand": "next dev",
-  "installCommand": "npm install",
-  "outputDirectory": ".next",
-  "env": {
-    "NEXT_PUBLIC_SUPABASE_URL": "@supabase_url",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase_anon_key",
-    "SUPABASE_SERVICE_ROLE_KEY": "@supabase_service_role_key",
-    "OPENAI_API_KEY": "@openai_api_key",
-    "OPENAI_MODEL": "gpt-4o",
-    "NEXT_PUBLIC_APP_URL": "@app_url"
-  },
-  "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,DELETE,OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, X-API-Key" }
-      ]
-    }
-  ]
+    "framework": "nextjs",
+    "buildCommand": "next build",
+    "devCommand": "next dev",
+    "installCommand": "npm install",
+    "outputDirectory": ".next",
+    "headers": [
+          {
+                  "source": "/api/(.*)",
+                  "headers": [
+                            { "key": "Access-Control-Allow-Origin", "value": "*" },
+                            { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,DELETE,OPTIONS" },
+                            { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, X-API-Key" }
+                  ]
+          }
+    ]
 }
