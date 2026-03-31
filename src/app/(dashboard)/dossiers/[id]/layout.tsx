@@ -17,14 +17,14 @@ interface DossierInfo {
 }
 
 const TABS = [
-  { href: '', label: 'Résumé', icon: '◉' },
-  { href: '/emprunteurs', label: 'Emprunteur', icon: '◯' },
-  { href: '/projet', label: 'Projet', icon: '⊞' },
-  { href: '/charges', label: 'Charges', icon: '⊟' },
-  { href: '/analyser', label: 'Analyse', icon: '◈' },
-  { href: '/controle-docs', label: 'Contrôle Docs', icon: '⊕' },
-  { href: '/synthetiser', label: 'Synthèse Banque', icon: '⊛' },
-  { href: '/export', label: 'Export', icon: '↗' },
+  { href: '', label: 'Résumé' },
+  { href: '/emprunteurs', label: 'Emprunteur' },
+  { href: '/projet', label: 'Projet' },
+  { href: '/charges', label: 'Charges' },
+  { href: '/analyse', label: 'Analyse' },
+  { href: '/controle-docs', label: 'Contrôle Docs' },
+  { href: '/synthese', label: 'Synthèse Banque' },
+  { href: '/export', label: 'Export' },
 ];
 
 const STATUT_LABELS: Record<string, string> = {
