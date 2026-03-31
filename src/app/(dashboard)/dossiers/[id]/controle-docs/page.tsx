@@ -1,299 +1,348 @@
-'use client';
+'use client'
+import { useState, useEffect } from 'react'
+import { useParams } from 'next/navigation'
 
-import { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-
-interface AlerteDoc {
-  categorie: string;
-  titre: string;
-  description: string;
-  niveau: 'ok' | 'attention' | 'alerte';
+interface Alerte {
+  type: 'vigilance' | 'manque' | 'incoherence'
+  titre: string
+  description: string
+  severite: 'haute' | 'moyenne' | 'faible'
 }
 
 interface ControleResult {
-  score_fiabilite: number;
-  resume: string;
-  alertes: AlerteDoc[];
-  recommandation: string;
+  score_fiabilite: number
+  resume: string
+  alertes: Alerte[]
+  recommandation: string
 }
 
-function analyseDocumentaire(dossier: any, emprunteurs: any[], documents: any[]): ControleResult {
-  const alertes: AlerteDoc[] = [];
-  let score = 100;
+function ScoreCircle({ score }: { score: number }) {
+  const color = score >= 75 ? '#059669' : score >= 50 ? '#D97706' : '#DC2626'
+  const label = score >= 75 ? 'Fiabilite elevee' : score >= 50 ? 'Quelques anomalies' : 'Anomalies importantes'
 
-  const typesPresents = documents.map((d: any) => (d.type_document || '').toLowerCase());
-  
-  const docsRequis = [
-    { label: "Piece d identite", keys: ['identite', 'cni', 'passeport'] },
-    { label: "Justificatifs de revenus", keys: ['paie', 'salaire', 'revenus', 'fiche'] },
-    { label: "Avis d imposition", keys: ['imposition', 'fiscal', 'impot', 'tax'] },
-    { label: "Releves bancaires", keys: ['bancaire', 'releve', 'compte'] },
-    { label: "Justificatif de domicile", keys: ['domicile', 'logement', 'quittance', 'facture'] },
-  ];
-
-  const manquants: string[] = [];
-  docsRequis.forEach(doc => {
-    const present = typesPresents.some((t: string) => doc.keys.some((k: string) => t.includes(k)));
-    if (!present) {
-      manquants.push(doc.label);
-      score -= 10;
-    }
-  });
-
-  if (manquants.length > 0) {
-    alertes.push({
-      categorie: 'Pieces manquantes',
-      titre: manquants.length + ' document(s) non fourni(s)',
-      description: 'Documents attendus non detectes dans le dossier : ' + manquants.join(', ') + '. Verification recommandee.',
-      niveau: manquants.length > 2 ? 'alerte' : 'attention',
-    });
-  }
-
-  if (emprunteurs.length > 0 && dossier?.nom_client) {
-    const nomClient = (dossier.nom_client || '').toLowerCase();
-    const hasCoherence = emprunteurs.some((e: any) =>
-      nomClient.includes((e.nom || '').toLowerCase()) ||
-      nomClient.includes((e.prenom || '').toLowerCase())
-    );
-    if (!hasCoherence) {
-      alertes.push({
-        categorie: 'Coherence administrative',
-        titre: 'Incoherence nominale potentielle',
-        description: 'Le nom du dossier et les emprunteurs declares presentent une incoherence potentielle. Verification recommandee.',
-        niveau: 'attention',
-      });
-      score -= 8;
-    }
-  }
-
-  const hasRevenus = typesPresents.some((t: string) => t.includes('paie') || t.includes('salaire') || t.includes('revenus'));
-  const emprunteursAvecRevenus = emprunteurs.filter((e: any) => e.revenus_nets || e.revenus_retenus);
-  
-  if (hasRevenus && emprunteursAvecRevenus.length === 0) {
-    alertes.push({
-      categorie: 'Coherence revenus',
-      titre: 'Revenus non renseignes malgre documents fournis',
-      description: 'Des justificatifs de revenus ont ete deposes mais aucun montant de revenus na ete saisi. Mise a jour recommandee.',
-      niveau: 'attention',
-    });
-    score -= 5;
-  }
-
-  if (emprunteursAvecRevenus.length > 0 && !hasRevenus) {
-    alertes.push({
-      categorie: 'Coherence revenus',
-      titre: 'Revenus declares sans justificatifs',
-      description: 'Des revenus ont ete declares pour les emprunteurs, mais aucun justificatif de revenus na ete detecte.',
-      niveau: 'alerte',
-    });
-    score -= 12;
-  }
-
-  if (documents.length === 0) {
-    alertes.push({
-      categorie: 'Qualite documentaire',
-      titre: 'Aucun document depose',
-      description: 'Le dossier ne contient aucun document. Un dossier complet est necessaire avant toute presentation bancaire.',
-      niveau: 'alerte',
-    });
-    score = 20;
-  } else if (documents.length < 3) {
-    alertes.push({
-      categorie: 'Qualite documentaire',
-      titre: 'Dossier documentaire incomplet',
-      description: 'Peu de documents ont ete deposes. Un dossier bancaire complet necessite generalement 10 a 15 pieces justificatives.',
-      niveau: 'attention',
-    });
-    score -= 8;
-  }
-
-  if (documents.length >= 8 && manquants.length === 0) {
-    alertes.push({
-      categorie: 'Qualite documentaire',
-      titre: 'Dossier documentaire bien fourni',
-      description: 'Le nombre et la diversite des documents deposes sont satisfaisants.',
-      niveau: 'ok',
-    });
-  }
-
-  const scoreFinal = Math.max(0, Math.min(100, score));
-  const alertesFortes = alertes.filter(a => a.niveau === 'alerte').length;
-  const alertesMoyennes = alertes.filter(a => a.niveau === 'attention').length;
-
-  let resume = '';
-  if (scoreFinal >= 80) resume = 'Le dossier documentaire presente une fiabilite elevee. Les pieces essentielles semblent presentes et coherentes.';
-  else if (scoreFinal >= 60) resume = 'Quelques anomalies ou incoherences ont ete detectees (' + alertesMoyennes + ' signal(s) de vigilance). Une verification ciblee est recommandee avant presentation banque.';
-  else resume = 'Des anomalies significatives ont ete detectees (' + alertesFortes + ' alerte(s) forte(s)). Ce dossier necessite une revue documentaire complete.';
-
-  let recommandation = '';
-  if (scoreFinal >= 80) recommandation = 'Dossier documentaire de bonne qualite. Proceder a la verification humaine finale avant presentation bancaire.';
-  else if (scoreFinal >= 60) recommandation = 'Corriger les points signales et completer les pieces manquantes. Une revue humaine des documents est necessaire.';
-  else recommandation = 'Revue documentaire complete indispensable. Ne pas presenter ce dossier en banque sans correction prealable.';
-
-  return { score_fiabilite: scoreFinal, resume, alertes, recommandation };
+  return (
+    <div style={{ textAlign: 'center', padding: '24px 0' }}>
+      <div style={{
+        width: '120px', height: '120px', borderRadius: '50%',
+        border: `8px solid ${color}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        margin: '0 auto 12px',
+        background: 'white',
+      }}>
+        <div>
+          <div style={{ fontSize: '32px', fontWeight: 800, color, lineHeight: 1 }}>{score}</div>
+          <div style={{ fontSize: '11px', color: 'var(--gray-400)', fontWeight: 500 }}>/100</div>
+        </div>
+      </div>
+      <div style={{ fontSize: '14px', fontWeight: 600, color }}>
+        {score >= 75 ? 'OK' : score >= 50 ? 'OK' : 'NON OK'}
+      </div>
+      <div style={{ fontSize: '13px', color: 'var(--gray-500)', marginTop: '4px' }}>{label}</div>
+    </div>
+  )
 }
 
-export default function ControleDocsPage({ params }: { params: { id: string } }) {
-  const supabase = createClientComponentClient();
-  const [result, setResult] = useState<ControleResult | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+function AlerteCard({ alerte }: { alerte: Alerte }) {
+  const colors = {
+    haute: { bg: '#FEF2F2', border: '#FECACA', text: '#DC2626', icon: 'Alerte haute' },
+    moyenne: { bg: '#FFFBEB', border: '#FDE68A', text: '#D97706', icon: 'Alerte moyenne' },
+    faible: { bg: '#F0FDF4', border: '#BBF7D0', text: '#059669', icon: 'Note' },
+  }
+  const typeIcons = {
+    vigilance: 'Signal de vigilance',
+    manque: 'Document manquant',
+    incoherence: 'Incoherence potentielle',
+  }
 
-  const runControle = async () => {
-    setLoading(true);
+  const c = colors[alerte.severite]
+  const typeLabel = typeIcons[alerte.type] || alerte.type
+
+  return (
+    <div style={{
+      background: c.bg, border: `1px solid ${c.border}`,
+      borderRadius: '8px', padding: '12px 16px',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: c.text }}>{alerte.titre}</span>
+        </div>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <span style={{
+            fontSize: '11px', padding: '2px 8px', borderRadius: '20px',
+            background: c.border, color: c.text, fontWeight: 600
+          }}>
+            {typeLabel}
+          </span>
+          <span style={{
+            fontSize: '11px', padding: '2px 8px', borderRadius: '20px',
+            background: 'white', color: c.text, fontWeight: 600, border: `1px solid ${c.border}`
+          }}>
+            {alerte.severite === 'haute' ? 'Prioritaire' : alerte.severite === 'moyenne' ? 'Moyen' : 'Faible'}
+          </span>
+        </div>
+      </div>
+      <p style={{ margin: 0, fontSize: '13px', color: 'var(--gray-700)', lineHeight: 1.5 }}>
+        {alerte.description}
+      </p>
+    </div>
+  )
+}
+
+export default function ControleDocsPage() {
+  const params = useParams()
+  const dossierId = params.id as string
+
+  const [result, setResult] = useState<ControleResult | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [analysing, setAnalysing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [dossierData, setDossierData] = useState<any>(null)
+
+  useEffect(() => {
+    loadData()
+  }, [dossierId])
+
+  async function loadData() {
+    setLoading(true)
     try {
-      const [dossierRes, emprunteursRes, documentsRes] = await Promise.all([
-        supabase.from('dossiers').select('*').eq('id', params.id).single(),
-        supabase.from('emprunteurs').select('*').eq('dossier_id', params.id),
-        supabase.from('documents').select('*').eq('dossier_id', params.id),
-      ]);
-      const res = analyseDocumentaire(
-        dossierRes.data,
-        emprunteursRes.data || [],
-        documentsRes.data || []
-      );
-      setResult(res);
-    } catch (e) {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  };
+      const [empRes, projRes, docsRes, controleRes] = await Promise.all([
+        fetch(`/api/dossiers/${dossierId}/emprunteurs`),
+        fetch(`/api/dossiers/${dossierId}/projet`),
+        fetch(`/api/dossiers/${dossierId}/documents`),
+        fetch(`/api/dossiers/${dossierId}/controles-docs`),
+      ])
 
-  useEffect(() => { runControle(); }, [params.id]);
+      const [emprunteurs, projet, documents, savedControle] = await Promise.all([
+        empRes.ok ? empRes.json() : [],
+        projRes.ok ? projRes.json() : null,
+        docsRes.ok ? docsRes.json() : [],
+        controleRes.ok ? controleRes.json() : null,
+      ])
 
-  const handleSave = async () => {
-    if (!result) return;
-    setSaving(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data: profil } = await supabase.from('profils_utilisateurs').select('cabinet_id').eq('id', user!.id).single();
-      const { data: existing } = await supabase.from('controles_docs').select('id').eq('dossier_id', params.id).single();
-      const payload = {
-        score_fiabilite: result.score_fiabilite, resume_ia: result.resume,
-        alertes: result.alertes, recommandation: result.recommandation,
-        updated_at: new Date().toISOString(),
-      };
-      if (existing) {
-        await supabase.from('controles_docs').update(payload).eq('dossier_id', params.id);
-      } else {
-        await supabase.from('controles_docs').insert({ ...payload, dossier_id: params.id, cabinet_id: profil?.cabinet_id });
+      setDossierData({ emprunteurs, projet, documents })
+
+      if (savedControle && savedControle.score_fiabilite !== undefined) {
+        setResult({
+          score_fiabilite: savedControle.score_fiabilite,
+          resume: savedControle.resume_ia || '',
+          alertes: savedControle.alertes || [],
+          recommandation: savedControle.recommandation || '',
+        })
       }
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (e) {
-      // silent
-    } finally {
-      setSaving(false);
+    } catch (err) {
+      console.error(err)
     }
-  };
+    setLoading(false)
+  }
 
-  const getScoreColor = (score: number) => score >= 80 ? 'var(--risk-low)' : score >= 60 ? 'var(--risk-medium)' : 'var(--risk-high)';
-  const getScoreLabel = (score: number) => score >= 80 ? 'Fiabilite elevee' : score >= 60 ? 'Quelques anomalies' : 'Anomalies fortes';
-  const getNiveauColor = (niveau: string) => niveau === 'ok' ? 'var(--risk-low)' : niveau === 'attention' ? 'var(--risk-medium)' : 'var(--risk-high)';
-  const getNiveauBg = (niveau: string) => niveau === 'ok' ? 'rgba(16,185,129,0.08)' : niveau === 'attention' ? 'rgba(245,158,11,0.08)' : 'rgba(239,68,68,0.08)';
-  const getNiveauLabel = (niveau: string) => niveau === 'ok' ? 'OK' : niveau === 'attention' ? 'Signal de vigilance' : 'Anomalie detectee';
+  async function runAnalyse() {
+    if (!dossierData) return
+    setAnalysing(true)
+    setError(null)
 
-  if (loading) return <div className="loading-container"><div className="loading-spinner" /><p>Analyse documentaire en cours...</p></div>;
+    try {
+      const res = await fetch('/api/analyse-ia', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'controle_docs',
+          dossierData,
+        }),
+      })
+
+      if (!res.ok) throw new Error('Erreur API')
+
+      const data = await res.json()
+      let parsed: ControleResult
+
+      try {
+        parsed = JSON.parse(data.content)
+      } catch {
+        parsed = {
+          score_fiabilite: 65,
+          resume: data.content || 'Analyse effectuee.',
+          alertes: [],
+          recommandation: 'Verifiez manuellement la coherence des documents.',
+        }
+      }
+
+      setResult(parsed)
+
+      // Save to DB
+      await fetch(`/api/dossiers/${dossierId}/controles-docs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dossier_id: dossierId,
+          score_fiabilite: parsed.score_fiabilite,
+          resume_ia: parsed.resume,
+          alertes: parsed.alertes,
+          recommandation: parsed.recommandation,
+        }),
+      })
+    } catch (err) {
+      setError('Erreur lors de l analyse. Reessayez dans quelques instants.')
+    }
+
+    setAnalysing(false)
+  }
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>Chargement du controle documentaire...</p>
+      </div>
+    )
+  }
+
+  const alertesHautes = result?.alertes?.filter(a => a.severite === 'haute') || []
+  const alertesMoyennes = result?.alertes?.filter(a => a.severite === 'moyenne') || []
+  const alertesFaibles = result?.alertes?.filter(a => a.severite === 'faible') || []
 
   return (
     <div className="page-container">
+      {/* Header */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">Controle documentaire IA</h1>
-          <p className="page-subtitle">Detection d anomalies, incoherences et signaux de vigilance</p>
+          <h2 className="page-title">Controle Documentaire IA</h2>
+          <p className="page-subtitle">
+            Detection d anomalies, incoherences et signaux de vigilance
+          </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button onClick={runControle} style={{
-            padding: '0.5rem 1rem', background: 'none', border: '1px solid var(--border-primary)',
-            borderRadius: '0.5rem', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--text-secondary)'
-          }}>Relancer</button>
-          <button onClick={handleSave} disabled={saving || !result} className="btn-primary">
-            {saving ? 'Enregistrement...' : saved ? 'Enregistre' : 'Enregistrer'}
-          </button>
-        </div>
+        <button
+          onClick={runAnalyse}
+          disabled={analysing}
+          className="btn-primary"
+          style={{ opacity: analysing ? 0.6 : 1 }}
+        >
+          {analysing ? 'Analyse en cours...' : result ? 'Relancer l analyse' : 'Lancer le controle IA'}
+        </button>
       </div>
 
-      {result && (
+      {/* Disclaimer legal */}
+      <div style={{
+        background: '#EFF6FF', border: '1px solid #BFDBFE',
+        borderRadius: '8px', padding: '12px 16px', marginBottom: '24px',
+        fontSize: '13px', color: '#1E40AF'
+      }}>
+        <strong>Note importante</strong> — Ce module detecte des anomalies potentielles et signaux de vigilance.
+        Il ne constitue pas une certification documentaire. Toute anomalie detectee requiert une verification humaine.
+        Les termes utilises sont: anomalie detectee, incoherence potentielle, signal de vigilance.
+      </div>
+
+      {error && (
+        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '12px 16px', color: '#DC2626', fontSize: '14px', marginBottom: '16px' }}>
+          {error}
+        </div>
+      )}
+
+      {analysing && (
+        <div className="card" style={{ textAlign: 'center', padding: '48px' }}>
+          <div className="loading-spinner" style={{ margin: '0 auto 16px' }}></div>
+          <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--gray-700)' }}>Analyse documentaire en cours...</h3>
+          <p style={{ color: 'var(--gray-500)', fontSize: '14px' }}>CortIA analyse la coherence de votre dossier</p>
+        </div>
+      )}
+
+      {!analysing && result && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-            <div className="card" style={{ textAlign: 'center', minWidth: '180px' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem', fontWeight: 600 }}>
-                SCORE DE FIABILITE DOCUMENTAIRE
+          {/* Score + Resume */}
+          <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '16px', marginBottom: '16px' }}>
+            <div className="card">
+              <ScoreCircle score={result.score_fiabilite} />
+            </div>
+            <div className="card">
+              <div className="card-header">
+                <h3 className="card-title">Resume documentaire IA</h3>
               </div>
-              <div style={{
-                width: '5rem', height: '5rem', borderRadius: '50%', margin: '0 auto 0.75rem',
-                border: '4px solid ' + getScoreColor(result.score_fiabilite),
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: getScoreColor(result.score_fiabilite) + '15'
-              }}>
-                <div>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 900, color: getScoreColor(result.score_fiabilite), lineHeight: 1 }}>{result.score_fiabilite}</div>
-                  <div style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>/100</div>
+              <p style={{ fontSize: '14px', lineHeight: 1.7, color: 'var(--gray-700)', margin: 0 }}>
+                {result.resume}
+              </p>
+              {result.recommandation && (
+                <div style={{
+                  marginTop: '16px', padding: '12px 16px',
+                  background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '8px'
+                }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#059669', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Recommandation CortIA
+                  </div>
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--gray-700)', lineHeight: 1.5 }}>
+                    {result.recommandation}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Alertes */}
+          {result.alertes && result.alertes.length > 0 && (
+            <div className="card">
+              <div className="card-header">
+                <h3 className="card-title">Points detectes</h3>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {alertesHautes.length > 0 && (
+                    <span className="badge badge-danger">{alertesHautes.length} prioritaire{alertesHautes.length > 1 ? 's' : ''}</span>
+                  )}
+                  {alertesMoyennes.length > 0 && (
+                    <span className="badge badge-warning">{alertesMoyennes.length} moyen{alertesMoyennes.length > 1 ? 's' : ''}</span>
+                  )}
+                  {alertesFaibles.length > 0 && (
+                    <span className="badge badge-success">{alertesFaibles.length} faible{alertesFaibles.length > 1 ? 's' : ''}</span>
+                  )}
                 </div>
               </div>
-              <div style={{ fontSize: '0.875rem', fontWeight: 600, color: getScoreColor(result.score_fiabilite) }}>
-                {getScoreLabel(result.score_fiabilite)}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {alertesHautes.map((a, i) => <AlerteCard key={`h${i}`} alerte={a} />)}
+                {alertesMoyennes.map((a, i) => <AlerteCard key={`m${i}`} alerte={a} />)}
+                {alertesFaibles.map((a, i) => <AlerteCard key={`f${i}`} alerte={a} />)}
               </div>
             </div>
+          )}
 
-            <div className="card">
-              <h2 className="card-title" style={{ marginBottom: '0.75rem' }}>Resume documentaire</h2>
-              <p style={{ fontSize: '0.9rem', lineHeight: 1.7, color: 'var(--text-secondary)' }}>{result.resume}</p>
-              <div style={{
-                marginTop: '1rem', padding: '0.75rem 1rem',
-                background: getScoreColor(result.score_fiabilite) + '10',
-                borderRadius: '0.5rem', borderLeft: '3px solid ' + getScoreColor(result.score_fiabilite),
-                fontSize: '0.85rem', color: 'var(--text-secondary)'
-              }}>
-                <strong>Recommandation CortIA :</strong> {result.recommandation}
-              </div>
+          {result.alertes && result.alertes.length === 0 && (
+            <div className="card" style={{ textAlign: 'center', padding: '32px' }}>
+              <div style={{ fontSize: '40px', marginBottom: '12px' }}>✅</div>
+              <h3 style={{ fontSize: '16px', color: '#059669' }}>Aucune anomalie detectee</h3>
+              <p style={{ color: 'var(--gray-500)', fontSize: '14px' }}>
+                Le dossier presente une coherence documentaire satisfaisante.
+              </p>
             </div>
-          </div>
-
-          <div className="card">
-            <h2 className="card-title" style={{ marginBottom: '1rem' }}>
-              Detail des controles ({result.alertes.length} element{result.alertes.length > 1 ? 's' : ''})
-            </h2>
-            {result.alertes.length === 0 ? (
-              <div className="empty-state"><p>Aucune anomalie detectee</p></div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {result.alertes.map((alerte, i) => (
-                  <div key={i} style={{
-                    padding: '1rem', background: getNiveauBg(alerte.niveau), borderRadius: '0.5rem',
-                    borderLeft: '3px solid ' + getNiveauColor(alerte.niveau)
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                      <div>
-                        <span style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>{alerte.categorie}</span>
-                        <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)', marginTop: '0.15rem' }}>{alerte.titre}</div>
-                      </div>
-                      <span style={{
-                        padding: '0.2rem 0.6rem', borderRadius: '0.25rem', fontSize: '0.7rem', fontWeight: 700,
-                        background: getNiveauBg(alerte.niveau), color: getNiveauColor(alerte.niveau),
-                        border: '1px solid ' + getNiveauColor(alerte.niveau) + '40', whiteSpace: 'nowrap'
-                      }}>
-                        {getNiveauLabel(alerte.niveau)}
-                      </span>
-                    </div>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>{alerte.description}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div style={{
-            marginTop: '1rem', padding: '0.875rem 1rem',
-            background: 'var(--surface-secondary)', borderRadius: '0.5rem',
-            fontSize: '0.78rem', color: 'var(--text-muted)', border: '1px solid var(--border-primary)'
-          }}>
-            CortIA Controle Documentaire est un outil d aide a la verification. Il detecte des incoherences potentielles et des signaux de vigilance. Toute decision finale doit etre confirmee par un examen humain des pieces originales.
-          </div>
+          )}
         </>
       )}
+
+      {!analysing && !result && (
+        <div className="empty-state">
+          <div style={{ fontSize: '48px', marginBottom: '12px' }}>🔍</div>
+          <h3>Controle non effectue</h3>
+          <p>Lancez le controle IA pour analyser la coherence documentaire du dossier</p>
+          <button onClick={runAnalyse} className="btn-primary" style={{ marginTop: '16px' }}>
+            Lancer le controle IA
+          </button>
+        </div>
+      )}
+
+      {/* Documents charges */}
+      {dossierData?.documents?.length > 0 && (
+        <div className="card" style={{ marginTop: '16px' }}>
+          <div className="card-header">
+            <h3 className="card-title">Documents du dossier ({dossierData.documents.length})</h3>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {dossierData.documents.map((doc: any) => (
+              <span key={doc.id} style={{
+                padding: '4px 12px', borderRadius: '20px', fontSize: '13px',
+                background: 'var(--gray-100)', color: 'var(--gray-700)',
+                border: '1px solid var(--gray-200)',
+              }}>
+                {doc.nom}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
-  );
+  )
 }
