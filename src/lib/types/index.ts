@@ -232,3 +232,6 @@ export const STATUTS_DOSSIER = {
     refuse: { label: 'Refusé', color: 'red' },
     archive: { label: 'Archivé', color: 'gray' },
 } as const
+
+// Alias pour la compatibilité - Document est utilisé dans certains composants
+export type Document = DocumentDossier
