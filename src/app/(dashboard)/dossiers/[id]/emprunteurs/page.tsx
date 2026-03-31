@@ -1,8 +1,7 @@
 'use client'
-
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import { formatMontant } from '@/lib/utils/format'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 interface Emprunteur {
   id: string
@@ -13,33 +12,58 @@ interface Emprunteur {
   employeur?: string
   salaire_net_mensuel?: number
   autres_revenus?: number
+  revenus_locatifs?: number
   credits_en_cours?: number
+  pension_versee?: number
+  autres_charges?: number
+  epargne?: number
+  valeur_patrimoine_immo?: number
   email?: string
   telephone?: string
+}
+
+const DEFAULT_FORM = {
+  prenom: '',
+  nom: '',
+  est_co_emprunteur: false,
+  type_contrat: 'CDI',
+  employeur: '',
+  salaire_net_mensuel: '',
+  autres_revenus: '',
+  revenus_locatifs: '',
+  credits_en_cours: '',
+  pension_versee: '',
+  autres_charges: '',
+  epargne: '',
+  valeur_patrimoine_immo: '',
+  email: '',
+  telephone: '',
+}
+
+function formatMontant(n?: number) {
+  if (!n) return '0 EUR'
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
 }
 
 export default function EmprunteursPage() {
   const params = useParams()
   const dossierId = params.id as string
+  const supabase = createClientComponentClient()
+
   const [emprunteurs, setEmprunteurs] = useState<Emprunteur[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [formData, setFormData] = useState<any>({
-    prenom: '', nom: '', est_co_emprunteur: false,
-    type_contrat: 'CDI', employeur: '',
-    salaire_net_mensuel: '', autres_revenus: '', revenus_locatifs: '',
-    credits_en_cours: '', pension_versee: '', autres_charges: '',
-    epargne: '', valeur_patrimoine_immo: '',
-    email: '', telephone: '',
-  })
+  const [formData, setFormData] = useState<any>(DEFAULT_FORM)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchEmprunteurs()
   }, [dossierId])
 
   async function fetchEmprunteurs() {
+    setLoading(true)
     const res = await fetch(`/api/dossiers/${dossierId}/emprunteurs`)
     if (res.ok) {
       const data = await res.json()
@@ -49,7 +73,7 @@ export default function EmprunteursPage() {
     setLoading(false)
   }
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
     const { name, value, type } = e.target
     setFormData((prev: any) => ({
       ...prev,
@@ -60,7 +84,8 @@ export default function EmprunteursPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
-    
+    setError(null)
+
     const payload = {
       ...formData,
       dossier_id: dossierId,
@@ -74,9 +99,11 @@ export default function EmprunteursPage() {
       valeur_patrimoine_immo: formData.valeur_patrimoine_immo ? parseFloat(formData.valeur_patrimoine_immo) : 0,
     }
 
-    const url = editingId ? `/api/dossiers/${dossierId}/emprunteurs?emprunteurId=${editingId}` : `/api/dossiers/${dossierId}/emprunteurs`
+    const url = editingId
+      ? `/api/dossiers/${dossierId}/emprunteurs?emprunteurId=${editingId}`
+      : `/api/dossiers/${dossierId}/emprunteurs`
     const method = editingId ? 'PATCH' : 'POST'
-    
+
     const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
@@ -86,136 +113,320 @@ export default function EmprunteursPage() {
     if (res.ok) {
       await fetchEmprunteurs()
       resetForm()
+    } else {
+      setError('Erreur lors de la sauvegarde. Veuillez reessayer.')
     }
     setSaving(false)
   }
 
   function resetForm() {
-    setFormData({ prenom: '', nom: '', est_co_emprunteur: false, type_contrat: 'CDI', employeur: '', salaire_net_mensuel: '', autres_revenus: '', revenus_locatifs: '', credits_en_cours: '', pension_versee: '', autres_charges: '', epargne: '', valeur_patrimoine_immo: '', email: '', telephone: '' })
+    setFormData(DEFAULT_FORM)
     setShowForm(false)
     setEditingId(null)
   }
 
   function editEmprunteur(e: Emprunteur) {
-    setFormData({ ...e, salaire_net_mensuel: e.salaire_net_mensuel || '', autres_revenus: (e as any).autres_revenus || '', revenus_locatifs: (e as any).revenus_locatifs || '', credits_en_cours: e.credits_en_cours || '', pension_versee: (e as any).pension_versee || '', autres_charges: (e as any).autres_charges || '', epargne: (e as any).epargne || '', valeur_patrimoine_immo: (e as any).valeur_patrimoine_immo || '' })
+    setFormData({
+      ...e,
+      salaire_net_mensuel: e.salaire_net_mensuel || '',
+      autres_revenus: (e as any).autres_revenus || '',
+      revenus_locatifs: (e as any).revenus_locatifs || '',
+      credits_en_cours: e.credits_en_cours || '',
+      pension_versee: (e as any).pension_versee || '',
+      autres_charges: (e as any).autres_charges || '',
+      epargne: (e as any).epargne || '',
+      valeur_patrimoine_immo: (e as any).valeur_patrimoine_immo || '',
+    })
     setEditingId(e.id)
     setShowForm(true)
   }
 
-  if (loading) return <div className="p-6 text-center text-gray-500">Chargement...</div>
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>Chargement des emprunteurs...</p>
+      </div>
+    )
+  }
+
+  const revenusTotal = emprunteurs.reduce((sum, e) => {
+    return sum + (e.salaire_net_mensuel || 0) + ((e as any).autres_revenus || 0) + ((e as any).revenus_locatifs || 0) * 0.7
+  }, 0)
+
+  const chargesTotal = emprunteurs.reduce((sum, e) => {
+    return sum + (e.credits_en_cours || 0) + ((e as any).pension_versee || 0)
+  }, 0)
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-900">Emprunteurs</h2>
-        {!showForm && (
-          <button onClick={() => setShowForm(true)} className="cortia-button-primary">
-            + Ajouter {emprunteurs.length > 0 ? 'co-emprunteur' : 'emprunteur'}
+    <div className="page-container">
+      {/* Header */}
+      <div className="page-header">
+        <div>
+          <h2 className="page-title">Emprunteurs</h2>
+          <p className="page-subtitle">
+            {emprunteurs.length === 0
+              ? 'Aucun emprunteur — ajoutez le profil principal'
+              : emprunteurs.length === 1
+              ? '1 emprunteur enregistre'
+              : `${emprunteurs.length} emprunteurs enregistres`}
+          </p>
+        </div>
+        {!showForm && emprunteurs.length > 0 && (
+          <button onClick={() => setShowForm(true)} className="btn-primary">
+            + {emprunteurs.length === 1 ? 'Ajouter co-emprunteur' : 'Ajouter emprunteur'}
           </button>
         )}
       </div>
 
-      {/* Liste */}
-      {emprunteurs.map(e => (
-        <div key={e.id} className="cortia-card p-5">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="font-semibold text-gray-900">{e.prenom} {e.nom}</h3>
-              <p className="text-sm text-gray-500">{e.est_co_emprunteur ? 'Co-emprunteur' : 'Emprunteur principal'}</p>
-              {e.employeur && <p className="text-sm text-gray-600 mt-1">{e.type_contrat} · {e.employeur}</p>}
-              {e.salaire_net_mensuel && (
-                <p className="text-sm font-medium text-blue-700 mt-1">
-                  {formatMontant(e.salaire_net_mensuel)}/mois net
-                  {e.credits_en_cours ? ` · Charges: ${formatMontant(e.credits_en_cours)}/mois` : ''}
-                </p>
-              )}
-            </div>
-            <button onClick={() => editEmprunteur(e)} className="text-sm text-blue-600 hover:text-blue-700">
-              Modifier
-            </button>
+      {error && (
+        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '12px 16px', color: '#DC2626', fontSize: '14px', marginBottom: '16px' }}>
+          {error}
+        </div>
+      )}
+
+      {/* Synthese revenus si plusieurs emprunteurs */}
+      {emprunteurs.length > 0 && (
+        <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '24px' }}>
+          <div className="kpi-card">
+            <div className="kpi-label">Revenus retenus totaux</div>
+            <div className="kpi-value">{formatMontant(revenusTotal)}<span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--gray-500)' }}>/mois</span></div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Charges declarees</div>
+            <div className="kpi-value">{formatMontant(chargesTotal)}<span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--gray-500)' }}>/mois</span></div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Nombre d emprunteurs</div>
+            <div className="kpi-value">{emprunteurs.length}</div>
           </div>
         </div>
-      ))}
+      )}
+
+      {/* Liste emprunteurs */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {emprunteurs.map((e) => (
+          <div key={e.id} className="card">
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                  <div style={{
+                    width: '40px', height: '40px', borderRadius: '50%',
+                    background: 'linear-gradient(135deg, var(--brand-blue), var(--brand-indigo))',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'white', fontWeight: 700, fontSize: '16px', flexShrink: 0
+                  }}>
+                    {e.prenom[0]}{e.nom[0]}
+                  </div>
+                  <div>
+                    <h3 style={{ fontWeight: 700, fontSize: '16px', color: 'var(--gray-900)', margin: 0 }}>
+                      {e.prenom} {e.nom}
+                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                      <span className={`badge ${e.est_co_emprunteur ? 'badge-info' : 'badge-success'}`}>
+                        {e.est_co_emprunteur ? 'Co-emprunteur' : 'Emprunteur principal'}
+                      </span>
+                      {e.type_contrat && (
+                        <span className="badge badge-neutral">{e.type_contrat}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '8px', marginTop: '12px' }}>
+                  {e.employeur && (
+                    <div style={{ fontSize: '13px' }}>
+                      <span style={{ color: 'var(--gray-500)' }}>Employeur</span>
+                      <div style={{ fontWeight: 600, color: 'var(--gray-800)' }}>{e.employeur}</div>
+                    </div>
+                  )}
+                  {e.salaire_net_mensuel && (
+                    <div style={{ fontSize: '13px' }}>
+                      <span style={{ color: 'var(--gray-500)' }}>Salaire net</span>
+                      <div style={{ fontWeight: 600, color: 'var(--gray-800)' }}>{formatMontant(e.salaire_net_mensuel)}/mois</div>
+                    </div>
+                  )}
+                  {(e as any).autres_revenus > 0 && (
+                    <div style={{ fontSize: '13px' }}>
+                      <span style={{ color: 'var(--gray-500)' }}>Autres revenus</span>
+                      <div style={{ fontWeight: 600, color: 'var(--gray-800)' }}>{formatMontant((e as any).autres_revenus)}/mois</div>
+                    </div>
+                  )}
+                  {e.credits_en_cours > 0 && (
+                    <div style={{ fontSize: '13px' }}>
+                      <span style={{ color: 'var(--gray-500)' }}>Credits en cours</span>
+                      <div style={{ fontWeight: 600, color: '#DC2626' }}>{formatMontant(e.credits_en_cours)}/mois</div>
+                    </div>
+                  )}
+                  {(e as any).epargne > 0 && (
+                    <div style={{ fontSize: '13px' }}>
+                      <span style={{ color: 'var(--gray-500)' }}>Epargne</span>
+                      <div style={{ fontWeight: 600, color: 'var(--gray-800)' }}>{formatMontant((e as any).epargne)}</div>
+                    </div>
+                  )}
+                  {e.email && (
+                    <div style={{ fontSize: '13px' }}>
+                      <span style={{ color: 'var(--gray-500)' }}>Email</span>
+                      <div style={{ fontWeight: 500, color: 'var(--gray-800)' }}>{e.email}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <button
+                onClick={() => editEmprunteur(e)}
+                style={{
+                  fontSize: '13px', color: 'var(--brand-blue)', fontWeight: 600,
+                  background: 'none', border: '1px solid var(--brand-blue)',
+                  borderRadius: '6px', padding: '6px 14px', cursor: 'pointer',
+                  whiteSpace: 'nowrap', marginLeft: '16px'
+                }}
+              >
+                Modifier
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
 
       {/* Formulaire */}
       {showForm && (
-        <div className="cortia-card p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">
-            {editingId ? 'Modifier l\'emprunteur' : 'Ajouter un emprunteur'}
-          </h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="cortia-label">Prénom *</label>
-                <input name="prenom" value={formData.prenom} onChange={handleChange} className="cortia-input" required />
+        <div className="card" style={{ marginTop: '24px' }}>
+          <div className="card-header">
+            <h3 className="card-title">
+              {editingId ? 'Modifier l emprunteur' : 'Ajouter un emprunteur'}
+            </h3>
+          </div>
+
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+            {/* Identite */}
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
+                Identite
               </div>
-              <div>
-                <label className="cortia-label">Nom *</label>
-                <input name="nom" value={formData.nom} onChange={handleChange} className="cortia-input" required />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Prenom *</label>
+                  <input name="prenom" value={formData.prenom} onChange={handleChange} className="form-input" required placeholder="Jean" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Nom *</label>
+                  <input name="nom" value={formData.nom} onChange={handleChange} className="form-input" required placeholder="Dupont" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Email</label>
+                  <input type="email" name="email" value={formData.email} onChange={handleChange} className="form-input" placeholder="jean.dupont@email.com" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Telephone</label>
+                  <input type="tel" name="telephone" value={formData.telephone} onChange={handleChange} className="form-input" placeholder="06 00 00 00 00" />
+                </div>
+              </div>
+              {emprunteurs.length > 0 && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--gray-700)', marginTop: '8px', cursor: 'pointer' }}>
+                  <input type="checkbox" name="est_co_emprunteur" checked={formData.est_co_emprunteur} onChange={handleChange} />
+                  Co-emprunteur
+                </label>
+              )}
+            </div>
+
+            {/* Situation professionnelle */}
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
+                Situation professionnelle
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Type de contrat</label>
+                  <select name="type_contrat" value={formData.type_contrat} onChange={handleChange} className="form-select">
+                    <option value="CDI">CDI</option>
+                    <option value="CDD">CDD</option>
+                    <option value="Fonctionnaire">Fonctionnaire</option>
+                    <option value="Independant">Independant</option>
+                    <option value="Liberal">Profession liberale</option>
+                    <option value="Gerant">Gerant</option>
+                    <option value="Retraite">Retraite</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Employeur / Entreprise</label>
+                  <input name="employeur" value={formData.employeur} onChange={handleChange} className="form-input" placeholder="Ex: SNCF, Cabinet XYZ..." />
+                </div>
               </div>
             </div>
 
-            {emprunteurs.length > 0 && (
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="est_co_emprunteur" checked={formData.est_co_emprunteur} onChange={handleChange} className="rounded" />
-                Co-emprunteur
-              </label>
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="cortia-label">Type de contrat</label>
-                <select name="type_contrat" value={formData.type_contrat} onChange={handleChange} className="cortia-input">
-                  <option value="CDI">CDI</option>
-                  <option value="CDD">CDD</option>
-                  <option value="Fonctionnaire">Fonctionnaire</option>
-                  <option value="Indépendant">Indépendant</option>
-                  <option value="Libéral">Profession libérale</option>
-                  <option value="Gérant">Gérant</option>
-                  <option value="Retraité">Retraité</option>
-                </select>
+            {/* Revenus */}
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
+                Revenus mensuels
               </div>
-              <div>
-                <label className="cortia-label">Employeur</label>
-                <input name="employeur" value={formData.employeur} onChange={handleChange} className="cortia-input" />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Salaire net (EUR/mois)</label>
+                  <input type="number" name="salaire_net_mensuel" value={formData.salaire_net_mensuel} onChange={handleChange} className="form-input" placeholder="3500" min="0" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Autres revenus (EUR/mois)</label>
+                  <input type="number" name="autres_revenus" value={formData.autres_revenus} onChange={handleChange} className="form-input" placeholder="0" min="0" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Revenus locatifs (EUR/mois)</label>
+                  <input type="number" name="revenus_locatifs" value={formData.revenus_locatifs} onChange={handleChange} className="form-input" placeholder="0" min="0" />
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="cortia-label">Salaire net/mois (€)</label>
-                <input type="number" name="salaire_net_mensuel" value={formData.salaire_net_mensuel} onChange={handleChange} className="cortia-input" placeholder="3500" />
+            {/* Charges & patrimoine */}
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
+                Charges et patrimoine
               </div>
-              <div>
-                <label className="cortia-label">Autres revenus (€)</label>
-                <input type="number" name="autres_revenus" value={formData.autres_revenus} onChange={handleChange} className="cortia-input" placeholder="0" />
-              </div>
-              <div>
-                <label className="cortia-label">Revenus locatifs (€)</label>
-                <input type="number" name="revenus_locatifs" value={formData.revenus_locatifs} onChange={handleChange} className="cortia-input" placeholder="0" />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Credits en cours (EUR/mois)</label>
+                  <input type="number" name="credits_en_cours" value={formData.credits_en_cours} onChange={handleChange} className="form-input" placeholder="0" min="0" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Pension versee (EUR/mois)</label>
+                  <input type="number" name="pension_versee" value={formData.pension_versee} onChange={handleChange} className="form-input" placeholder="0" min="0" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Autres charges (EUR/mois)</label>
+                  <input type="number" name="autres_charges" value={formData.autres_charges} onChange={handleChange} className="form-input" placeholder="0" min="0" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Epargne disponible (EUR)</label>
+                  <input type="number" name="epargne" value={formData.epargne} onChange={handleChange} className="form-input" placeholder="0" min="0" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Patrimoine immobilier (EUR)</label>
+                  <input type="number" name="valeur_patrimoine_immo" value={formData.valeur_patrimoine_immo} onChange={handleChange} className="form-input" placeholder="0" min="0" />
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="cortia-label">Crédits en cours (€/mois)</label>
-                <input type="number" name="credits_en_cours" value={formData.credits_en_cours} onChange={handleChange} className="cortia-input" placeholder="0" />
-              </div>
-              <div>
-                <label className="cortia-label">Épargne disponible (€)</label>
-                <input type="number" name="epargne" value={formData.epargne} onChange={handleChange} className="cortia-input" placeholder="0" />
-              </div>
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <button type="submit" disabled={saving} className="cortia-button-primary disabled:opacity-50">
-                {saving ? 'Enregistrement...' : 'Enregistrer'}
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '12px', paddingTop: '8px', borderTop: '1px solid var(--gray-200)' }}>
+              <button type="submit" disabled={saving} className="btn-primary" style={{ opacity: saving ? 0.6 : 1 }}>
+                {saving ? 'Enregistrement...' : editingId ? 'Mettre a jour' : 'Enregistrer'}
               </button>
-              <button type="button" onClick={resetForm} className="cortia-button-secondary">
+              <button type="button" onClick={resetForm} className="btn-secondary">
                 Annuler
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {emprunteurs.length === 0 && !showForm && (
+        <div className="empty-state">
+          <div style={{ fontSize: '48px', marginBottom: '12px' }}>👤</div>
+          <h3>Aucun emprunteur</h3>
+          <p>Ajoutez le profil de l emprunteur principal pour commencer l analyse</p>
+          <button onClick={() => setShowForm(true)} className="btn-primary" style={{ marginTop: '16px' }}>
+            + Ajouter un emprunteur
+          </button>
         </div>
       )}
     </div>
