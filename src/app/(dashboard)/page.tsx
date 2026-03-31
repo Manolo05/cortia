@@ -29,15 +29,15 @@ export default function DashboardPage() {
       if (!user) return
 
       const { data: profil } = await supabase
-        .from('profil_utilisateur')
-        .select('nom_complet, cabinet_id, cabinets(nom_cabinet)')
-        .eq('user_id', user.id)
+        .from('profils_utilisateurs')
+        .select('nom_complet, cabinet_id')
+        .eq('id', user.id)
         .single()
 
       if (profil) {
         setUserInfo({
           name: profil.nom_complet || user.email || 'Courtier',
-          cabinet: (profil.cabinets as any)?.nom_cabinet || 'Mon Cabinet',
+          cabinet: 'Mon Cabinet',
         })
 
         const { data: dossiers } = await supabase
