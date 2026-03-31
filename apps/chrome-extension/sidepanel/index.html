@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CortIA Panel</title>
+  <link rel="stylesheet" href="styles/panel.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Login view -->
+    <div id="login-view" class="view">
+      <div class="panel-header">
+        <div class="logo">🏠 CortIA</div>
+      </div>
+      <div class="panel-content">
+        <h2>Connexion</h2>
+        <form id="login-form">
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="email" placeholder="vous@cabinet.fr" required>
+          </div>
+          <div class="form-group">
+            <label>Mot de passe</label>
+            <input type="password" id="password" placeholder="••••••••" required>
+          </div>
+          <div id="login-error" class="error hidden"></div>
+          <button type="submit" class="btn btn-primary">Se connecter</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Main view -->
+    <div id="main-view" class="view hidden">
+      <div class="panel-header">
+        <div class="logo">🏠 CortIA</div>
+        <div class="user-info" id="user-name"></div>
+        <button id="logout-btn" class="btn-icon" title="Déconnexion">⎋</button>
+      </div>
+      <div class="panel-content">
+        <div id="bank-badge" class="bank-badge hidden"></div>
+        
+        <div class="section">
+          <h3>Nouveau dossier</h3>
+          <button id="create-dossier" class="btn btn-primary w-full">
+            + Créer un dossier
+          </button>
+        </div>
+
+        <div class="section">
+          <h3>Dossiers récents</h3>
+          <div id="dossiers-list" class="dossiers-list">
+            <p class="loading">Chargement...</p>
+          </div>
+        </div>
+
+        <div class="section">
+          <a href="https://cortia.vercel.app" target="_blank" class="btn btn-secondary w-full">
+            Ouvrir l'application complète ↗
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
