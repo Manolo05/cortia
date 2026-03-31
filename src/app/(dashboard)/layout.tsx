@@ -2,6 +2,41 @@ import { Sidebar } from '@/components/layout/sidebar'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
+async function ensureUserSetup(supabase: any, user: any) {
+  try {
+    const { data: profil } = await supabase
+      .from('profils_utilisateurs')
+      .select('id, cabinet_id')
+      .eq('id', user.id)
+      .single()
+
+    if (profil?.cabinet_id) return
+
+    const nomCabinet = user.user_metadata?.nom_cabinet || 'Mon Cabinet'
+    const nomComplet = user.user_metadata?.nom_complet || user.email?.split('@')[0] || 'Courtier'
+
+    const { data: cabinet } = await supabase
+      .from('cabinets')
+      .insert({ nom: nomCabinet, plan_abonnement: 'starter' })
+      .select()
+      .single()
+
+    if (cabinet) {
+      await supabase
+        .from('profils_utilisateurs')
+        .upsert({
+          id: user.id,
+          cabinet_id: cabinet.id,
+          email: user.email,
+          nom_complet: nomComplet,
+          role: 'admin',
+        })
+    }
+  } catch (e) {
+    // Silent fail - setup errors shouldn't block the dashboard
+  }
+}
+
 export default async function DashboardLayout({
   children,
 }: {
@@ -13,6 +48,9 @@ export default async function DashboardLayout({
   if (!user) {
     redirect('/login')
   }
+
+  // Auto-provision cabinet and profil if not yet created
+  await ensureUserSetup(supabase, user)
 
   return (
     <div className="flex h-screen bg-gray-50">
