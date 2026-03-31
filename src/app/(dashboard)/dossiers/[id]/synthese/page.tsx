@@ -1,227 +1,318 @@
-'use client';
+'use client'
+import { useState, useEffect } from 'react'
+import { useParams } from 'next/navigation'
 
-import { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-
-function formatCurrency(amount?: number) {
-  if (!amount) return '—';
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(amount);
+interface DossierData {
+  emprunteurs: any[]
+  projet: any
+  analyse: any
+  charges: any[]
 }
 
-function generateSynthese(dossier: any, emprunteurs: any[], projet: any, charges: any[]) {
-  const nom = dossier?.nom_client || 'M./Mme Client';
-  const revenus = emprunteurs.reduce((s: number, e: any) => s + (e.revenus_retenus || e.revenus_nets || 0), 0);
-  const totalCharges = charges.reduce((s, c) => s + c.mensualite, 0);
-  const prixBien = projet?.prix_bien || dossier?.montant_projet || 0;
-  const apport = projet?.apport_personnel || 0;
-  const besoin = Math.max(0, prixBien - apport);
-  const duree = projet?.duree_souhaitee || 20;
-  const taux = 0.037;
-  const n = duree * 12;
-  const mensualite = besoin > 0 ? (besoin * (taux / 12)) / (1 - Math.pow(1 + taux / 12, -n)) : 0;
-  const tauxEnde = revenus > 0 ? ((mensualite + totalCharges) / revenus * 100).toFixed(1) : '—';
-  const score = dossier?.score_global;
-  const risque = dossier?.niveau_risque;
+const SECTIONS_BANCAIRES = [
+  { key: 'presentation_client', titre: '1. Presentation client' },
+  { key: 'situation_pro', titre: '2. Situation professionnelle' },
+  { key: 'situation_financiere', titre: '3. Situation financiere' },
+  { key: 'presentation_projet', titre: '4. Presentation du projet' },
+  { key: 'atouts', titre: '5. Atouts du dossier' },
+  { key: 'points_vigilance', titre: '6. Points de vigilance' },
+  { key: 'conclusion', titre: '7. Conclusion courtier' },
+]
 
-  const contrats = emprunteurs.map((e: any) => e.type_contrat || 'NC').join(', ');
-  const nbEmprunteurs = emprunteurs.length;
-
-  const sections = {
-    presentation: `${nbEmprunteurs > 1 ? 'Les emprunteurs sont' : 'L\'emprunteur est'} ${emprunteurs.map((e: any) => `${e.prenom || ''} ${e.nom || ''}`.trim()).join(' et ') || nom}. Ce dossier concerne un projet ${projet?.type_projet || 'd\'acquisition immobilière'} pour lequel notre cabinet sollicite votre accompagnement bancaire.`,
-    
-    situation_pro: `${nbEmprunteurs > 1 ? 'Les emprunteurs exercent' : 'L\'emprunteur exerce'} ${contrats ? 'en ' + contrats : 'une activité professionnelle'}. ${emprunteurs.length > 0 ? emprunteurs.map((e: any) => `${e.prenom || ''} ${e.nom || ''} perçoit ${formatCurrency(e.revenus_retenus || e.revenus_nets)} de revenus nets mensuels`).join(' et ') + '.' : ''} La situation professionnelle présente ${contrats.includes('CDI') || contrats.includes('Fonctionnaire') ? 'une stabilité satisfaisante' : 'un profil à examiner'} pour ce type de financement.`,
-    
-    situation_financiere: `Le foyer dispose de revenus retenus de ${formatCurrency(revenus)}/mois. ${totalCharges > 0 ? `Les charges mensuelles existantes s\'élèvent à ${formatCurrency(totalCharges)}/mois.` : 'Aucune charge mensuelle significative n\'a été identifiée.'} La mensualité du prêt envisagé est estimée à ${formatCurrency(Math.round(mensualite))}/mois, portant le taux d\'endettement global à ${tauxEnde}%.`,
-    
-    projet: `Le projet porte sur ${projet?.type_projet || 'une acquisition'} d\'un montant de ${formatCurrency(prixBien)}${projet?.montant_travaux ? ` (dont ${formatCurrency(projet.montant_travaux)} de travaux)` : ''}. L\'apport personnel mobilisé est de ${formatCurrency(apport)}${prixBien ? ` (${Math.round(apport / prixBien * 100)}% du prix d\'acquisition)` : ''}. Le besoin de financement sollicité est de ${formatCurrency(besoin)} sur ${duree} ans.`,
-    
-    atouts: `Ce dossier présente plusieurs atouts notables : ${[
-      apport / prixBien >= 0.10 ? `un apport solide de ${Math.round(apport / prixBien * 100)}%` : null,
-      (contrats.includes('CDI') || contrats.includes('Fonctionnaire')) ? 'une situation professionnelle stable' : null,
-      parseFloat(tauxEnde) <= 33 ? `un taux d\'endettement maîtrisé à ${tauxEnde}%` : null,
-      score && score >= 70 ? `un score de qualité dossier favorable (${score}/100)` : null,
-    ].filter(Boolean).join(', ') || 'à compléter après analyse approfondie'}.`,
-    
-    vigilance: `Points de vigilance à porter à votre attention : ${[
-      parseFloat(tauxEnde) > 35 ? `taux d\'endettement ${tauxEnde}% légèrement supérieur à la norme bancaire` : null,
-      apport / prixBien < 0.10 ? 'apport personnel limité' : null,
-      totalCharges > revenus * 0.15 ? 'charges mensuelles significatives' : null,
-      !(contrats.includes('CDI') || contrats.includes('Fonctionnaire')) ? 'profil professionnel atypique nécessitant analyse approfondie' : null,
-    ].filter(Boolean).join(', ') || 'aucun point de vigilance majeur identifié à ce stade'}.`,
-    
-    conclusion: `Sur la base des éléments transmis et de notre analyse, ce dossier nous semble ${score ? (score >= 70 ? 'solide et présentable en banque dans les meilleures conditions' : score >= 50 ? 'recevable sous réserve des points signalés ci-dessus' : 'nécessitant quelques optimisations avant présentation') : 'à étudier'}. Nous restons disponibles pour tout complément d\'information. CortIA — Cabinet de courtage immobilier.`
-  };
-
-  return sections;
+function formatMontant(n?: number) {
+  if (!n) return '0 EUR'
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
 }
 
-export default function SynthesePage({ params }: { params: { id: string } }) {
-  const supabase = createClientComponentClient();
-  const [sections, setSections] = useState<Record<string, string> | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [dossierNom, setDossierNom] = useState('');
+export default function SynthesePage() {
+  const params = useParams()
+  const dossierId = params.id as string
 
-  const loadAndGenerate = async () => {
-    setLoading(true);
+  const [dossierData, setDossierData] = useState<DossierData | null>(null)
+  const [synthese, setSynthese] = useState<string>('')
+  const [loading, setLoading] = useState(true)
+  const [generating, setGenerating] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [savedSynthese, setSavedSynthese] = useState<string | null>(null)
+
+  useEffect(() => {
+    loadDossierData()
+  }, [dossierId])
+
+  async function loadDossierData() {
+    setLoading(true)
     try {
-      const [dossierRes, emprunteursRes, projetRes, chargesRes] = await Promise.all([
-        supabase.from('dossiers').select('*').eq('id', params.id).single(),
-        supabase.from('emprunteurs').select('*').eq('dossier_id', params.id),
-        supabase.from('projets').select('*').eq('dossier_id', params.id).single(),
-        supabase.from('charges').select('*').eq('dossier_id', params.id),
-      ]);
-      setDossierNom(dossierRes.data?.nom_client || 'Dossier');
-      const result = generateSynthese(
-        dossierRes.data || {},
-        emprunteursRes.data || [],
-        projetRes.data,
-        chargesRes.data || []
-      );
-      setSections(result);
-    } catch (e) {
-      // silent
-    } finally {
-      setLoading(false);
+      const [empRes, projRes, analyseRes, chargesRes, synthRes] = await Promise.all([
+        fetch(`/api/dossiers/${dossierId}/emprunteurs`),
+        fetch(`/api/dossiers/${dossierId}/projet`),
+        fetch(`/api/dossiers/${dossierId}/analyses`),
+        fetch(`/api/dossiers/${dossierId}/charges`),
+        fetch(`/api/dossiers/${dossierId}/syntheses`),
+      ])
+
+      const [emprunteurs, projet, analyse, charges, synthData] = await Promise.all([
+        empRes.ok ? empRes.json() : [],
+        projRes.ok ? projRes.json() : null,
+        analyseRes.ok ? analyseRes.json() : null,
+        chargesRes.ok ? chargesRes.json() : [],
+        synthRes.ok ? synthRes.json() : null,
+      ])
+
+      setDossierData({ emprunteurs, projet, analyse, charges })
+      if (synthData?.contenu_ia) {
+        setSavedSynthese(synthData.contenu_ia)
+        setSynthese(synthData.contenu_ia)
+      }
+    } catch (err) {
+      console.error(err)
     }
-  };
+    setLoading(false)
+  }
 
-  useEffect(() => { loadAndGenerate(); }, [params.id]);
+  async function generateSynthese() {
+    if (!dossierData) return
+    setGenerating(true)
+    setError(null)
 
-  const handleCopy = () => {
-    if (!sections) return;
-    const text = [
-      'NOTE BANCAIRE — ' + dossierNom.toUpperCase(),
+    try {
+      const res = await fetch('/api/analyse-ia', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'synthese',
+          dossierData,
+        }),
+      })
+
+      if (!res.ok) throw new Error('Erreur API')
+
+      const data = await res.json()
+      const content = data.content || ''
+      setSynthese(content)
+      setSavedSynthese(content)
+
+      // Save to DB
+      await fetch(`/api/dossiers/${dossierId}/syntheses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dossier_id: dossierId, contenu_ia: content }),
+      })
+    } catch (err) {
+      setError('Erreur lors de la generation. Reessayez dans quelques instants.')
+    }
+    setGenerating(false)
+  }
+
+  async function copyToClipboard(text: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+    } catch {
+      // fallback
+      const el = document.createElement('textarea')
+      el.value = text
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+    }
+  }
+
+  function buildNoteBancaire(): string {
+    if (!dossierData) return ''
+    const { emprunteurs, projet, analyse, charges } = dossierData
+    const empNoms = emprunteurs?.map(e => e.prenom + ' ' + e.nom).join(' et ') || 'N/A'
+    const revTotal = emprunteurs?.reduce((s, e) => s + (e.salaire_net_mensuel || 0), 0) || 0
+    const typeContrats = [...new Set(emprunteurs?.map(e => e.type_contrat).filter(Boolean))].join(', ') || 'N/A'
+    const chargesTotal = charges?.reduce((s: number, c: any) => s + (c.mensualite || 0), 0) || 0
+
+    const lines = [
+      'NOTE DE SYNTHESE BANCAIRE - CortIA',
+      '='.repeat(50),
       '',
-      '1. PRÉSENTATION CLIENT',
-      sections.presentation,
+      '1. PRESENTATION CLIENT',
+      `Emprunteur(s): ${empNoms}`,
+      emprunteurs?.length > 1 ? `Dossier bi-actif (${emprunteurs.length} emprunteurs)` : 'Dossier mono-actif',
       '',
       '2. SITUATION PROFESSIONNELLE',
-      sections.situation_pro,
+      `Type de contrat: ${typeContrats}`,
+      emprunteurs?.map(e => `${e.prenom} ${e.nom}: ${e.type_contrat || 'N/A'} ${e.employeur ? 'chez ' + e.employeur : ''}`).join('\n') || '',
       '',
-      '3. SITUATION FINANCIÈRE',
-      sections.situation_financiere,
+      '3. SITUATION FINANCIERE',
+      `Revenus nets mensuels: ${formatMontant(revTotal)}`,
+      `Charges mensuelles courantes: ${formatMontant(chargesTotal)}`,
+      analyse ? `Taux d endettement projet: ${analyse.taux_endettement?.toFixed(1) || 'N/A'}%` : '',
+      analyse ? `Reste a vivre: ${formatMontant(analyse.reste_a_vivre)}/mois` : '',
       '',
-      '4. PRÉSENTATION DU PROJET',
-      sections.projet,
+      '4. PRESENTATION DU PROJET',
+      projet ? `Type: ${projet.type_bien} - ${projet.usage || 'Residence principale'}` : 'Projet non renseigne',
+      projet ? `Localisation: ${projet.ville || 'N/A'} ${projet.code_postal || ''}` : '',
+      projet ? `Prix d achat: ${formatMontant(projet.prix_achat)}` : '',
+      projet ? `Apport personnel: ${formatMontant(projet.apport || 0)}` : '',
+      analyse ? `Besoin de financement: ${formatMontant(analyse.besoin_financement)}` : '',
+      analyse ? `Mensualite estimee: ${formatMontant(analyse.mensualite_estimee)}/mois sur ${(projet?.duree_souhaitee || 240) / 12} ans` : '',
       '',
       '5. ATOUTS DU DOSSIER',
-      sections.atouts,
+      emprunteurs?.some(e => e.type_contrat === 'CDI' || e.type_contrat === 'Fonctionnaire') ? '- Stabilite professionnelle confirmee (CDI / Fonction publique)' : '',
+      (projet?.apport || 0) > 0 ? `- Apport personnel de ${formatMontant(projet?.apport)} (${analyse?.ratio_apport?.toFixed(1) || 'N/A'}% du cout total)` : '',
+      analyse && analyse.taux_endettement < 35 ? `- Taux d endettement maitrise (${analyse.taux_endettement?.toFixed(1)}%)` : '',
+      analyse && analyse.score_global >= 70 ? `- Score CortIA favorable: ${analyse.score_global}/100` : '',
       '',
       '6. POINTS DE VIGILANCE',
-      sections.vigilance,
+      analyse && analyse.taux_endettement >= 35 ? `- Taux d endettement eleve (${analyse.taux_endettement?.toFixed(1)}%) - argumentation necessaire` : '',
+      chargesTotal > 0 ? `- Charges courantes a prendre en compte: ${formatMontant(chargesTotal)}/mois` : '',
+      '- Verifier exhaustivite des documents justificatifs',
       '',
       '7. CONCLUSION COURTIER',
-      sections.conclusion,
-    ].join('\n');
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 3000);
-    });
-  };
+      analyse && analyse.score_global >= 70
+        ? `Dossier solide (score ${analyse.score_global}/100). Financement envisageable sur ${(projet?.duree_souhaitee || 240) / 12} ans.`
+        : analyse && analyse.score_global >= 50
+        ? `Dossier acceptable (score ${analyse.score_global}/100). Quelques points d attention a clarifier.`
+        : 'Dossier a renforcer. Des ajustements sont recommandes avant presentation aux etablissements bancaires.',
+      '',
+      '---',
+      `Note generee par CortIA - ${new Date().toLocaleDateString('fr-FR')}`,
+    ]
 
-  const handleSave = async () => {
-    if (!sections) return;
-    setSaving(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data: profil } = await supabase.from('profils_utilisateurs').select('cabinet_id').eq('id', user!.id).single();
-      const { data: existing } = await supabase.from('syntheses_ia').select('id').eq('dossier_id', params.id).single();
-      const payload = { contenu: JSON.stringify(sections), updated_at: new Date().toISOString() };
-      if (existing) {
-        await supabase.from('syntheses_ia').update(payload).eq('dossier_id', params.id);
-      } else {
-        await supabase.from('syntheses_ia').insert({ ...payload, dossier_id: params.id, cabinet_id: profil?.cabinet_id });
-      }
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (e) {
-      // silent
-    } finally {
-      setSaving(false);
-    }
-  };
+    return lines.filter(l => l !== undefined && l !== null).join('\n')
+  }
 
-  const sectionLabels: Record<string, string> = {
-    presentation: '1. Présentation client',
-    situation_pro: '2. Situation professionnelle',
-    situation_financiere: '3. Situation financière',
-    projet: '4. Présentation du projet',
-    atouts: '5. Atouts du dossier',
-    vigilance: '6. Points de vigilance',
-    conclusion: '7. Conclusion courtier',
-  };
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>Chargement de la synthese...</p>
+      </div>
+    )
+  }
 
-  if (loading) return <div className="loading-container"><div className="loading-spinner" /><p>Génération de la synthèse...</p></div>;
+  const noteBancaire = buildNoteBancaire()
+  const hasData = dossierData && (
+    (dossierData.emprunteurs?.length || 0) > 0 || dossierData.projet
+  )
 
   return (
     <div className="page-container">
+      {/* Header */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">⊛ Synthèse banque</h1>
-          <p className="page-subtitle">Note bancaire structurée en 7 sections — prête à transmettre</p>
+          <h2 className="page-title">Synthese banque</h2>
+          <p className="page-subtitle">Note de synthese bancaire — communication courtier</p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button onClick={loadAndGenerate} style={{
-            padding: '0.5rem 1rem', background: 'none', border: '1px solid var(--border-primary)',
-            borderRadius: '0.5rem', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--text-secondary)'
-          }}>↻ Régénérer</button>
-          <button onClick={handleCopy} style={{
-            padding: '0.5rem 1rem', background: 'none', border: '1px solid var(--brand-blue)',
-            borderRadius: '0.5rem', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--brand-blue)', fontWeight: 600
-          }}>
-            {copied ? '✓ Copié !' : '⎘ Copier la note'}
-          </button>
-          <button onClick={handleSave} disabled={saving} className="btn-primary">
-            {saving ? 'Enregistrement...' : saved ? '✓ Enregistré' : 'Enregistrer'}
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          {synthese && (
+            <button
+              onClick={() => copyToClipboard(synthese)}
+              className="btn-secondary"
+            >
+              {copied ? '✅ Copie !' : '📋 Copier la note IA'}
+            </button>
+          )}
+          <button
+            onClick={generateSynthese}
+            disabled={generating || !hasData}
+            className="btn-primary"
+            style={{ opacity: generating || !hasData ? 0.6 : 1 }}
+          >
+            {generating ? 'Generation...' : synthese ? 'Regenerer' : 'Generer avec CortIA'}
           </button>
         </div>
       </div>
 
-      {sections && (
+      {error && (
+        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '12px 16px', color: '#DC2626', fontSize: '14px', marginBottom: '16px' }}>
+          {error}
+        </div>
+      )}
+
+      {!hasData && (
+        <div className="card" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', marginBottom: '24px' }}>
+          <p style={{ color: '#92400E', fontSize: '14px', margin: 0 }}>
+            <strong>Donnees incompletes</strong> — Completez les onglets Emprunteur, Projet et Analyse avant de generer la synthese.
+          </p>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        {/* Note bancaire structuree */}
         <div className="card">
-          <div style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-primary)' }}>
-            <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
-              NOTE BANCAIRE
-            </div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              {dossierNom.toUpperCase()}
+          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h3 className="card-title">Note structuree CortIA</h3>
+            <button
+              onClick={() => copyToClipboard(noteBancaire)}
+              style={{ fontSize: '12px', color: 'var(--brand-blue)', background: 'none', border: '1px solid var(--brand-blue)', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer' }}
+            >
+              {copied ? '✅' : '📋 Copier'}
+            </button>
+          </div>
+
+          <div style={{ fontSize: '13px', fontFamily: 'monospace', lineHeight: 1.6, color: 'var(--gray-700)', whiteSpace: 'pre-wrap', maxHeight: '500px', overflowY: 'auto' }}>
+            {noteBancaire || (
+              <span style={{ color: 'var(--gray-400)', fontFamily: 'inherit' }}>
+                Completez le dossier pour voir la note structuree...
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Synthese IA */}
+        <div className="card">
+          <div className="card-header">
+            <h3 className="card-title">Synthese IA CortIA</h3>
+            <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
+              {synthese ? 'Generee' : 'Non generee'}
             </div>
           </div>
 
-          {Object.entries(sections).map(([key, value]) => (
-            <div key={key} style={{ marginBottom: '1.5rem' }}>
-              <div style={{
-                fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase',
-                letterSpacing: '0.05em', color: 'var(--brand-blue)', marginBottom: '0.5rem'
-              }}>
-                {sectionLabels[key] || key}
-              </div>
-              <p style={{ fontSize: '0.9rem', lineHeight: 1.8, color: 'var(--text-secondary)', margin: 0 }}>
-                {value}
-              </p>
+          {generating ? (
+            <div style={{ textAlign: 'center', padding: '48px 0' }}>
+              <div className="loading-spinner" style={{ margin: '0 auto 16px' }}></div>
+              <p style={{ color: 'var(--gray-500)', fontSize: '14px' }}>Generation en cours...</p>
             </div>
-          ))}
+          ) : synthese ? (
+            <div style={{ fontSize: '14px', lineHeight: 1.7, color: 'var(--gray-700)', whiteSpace: 'pre-wrap', maxHeight: '500px', overflowY: 'auto' }}>
+              {synthese}
+            </div>
+          ) : (
+            <div className="empty-state" style={{ padding: '48px 0' }}>
+              <div style={{ fontSize: '40px', marginBottom: '12px' }}>✨</div>
+              <h3 style={{ fontSize: '16px' }}>Synthese IA non generee</h3>
+              <p style={{ fontSize: '13px' }}>Cliquez sur "Generer avec CortIA" pour obtenir une synthese intelligente</p>
+            </div>
+          )}
+        </div>
+      </div>
 
-          <div style={{
-            marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border-primary)',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-          }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              Généré automatiquement par CortIA — {new Date().toLocaleDateString('fr-FR')}
-            </span>
-            <button onClick={handleCopy} style={{
-              padding: '0.5rem 1.25rem', background: 'var(--brand-blue)', color: 'white',
-              border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600
-            }}>
-              {copied ? '✓ Copié !' : '⎘ Copier la note complète'}
-            </button>
+      {/* Recap donnees dossier */}
+      {dossierData && (
+        <div className="card" style={{ marginTop: '16px' }}>
+          <div className="card-header">
+            <h3 className="card-title">Donnees utilisees</h3>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+            <RecapItem label="Emprunteurs" value={String(dossierData.emprunteurs?.length || 0)} ok={dossierData.emprunteurs?.length > 0} />
+            <RecapItem label="Projet" value={dossierData.projet?.type_bien || 'Non renseigne'} ok={!!dossierData.projet} />
+            <RecapItem label="Analyse" value={dossierData.analyse?.score_global ? dossierData.analyse.score_global + '/100' : 'Non calculee'} ok={!!dossierData.analyse} />
+            <RecapItem label="Charges" value={String(dossierData.charges?.length || 0) + ' charge(s)'} ok={true} />
           </div>
         </div>
       )}
     </div>
-  );
+  )
+}
+
+function RecapItem({ label, value, ok }: { label: string; value: string; ok: boolean }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 0' }}>
+      <span style={{ fontSize: '16px' }}>{ok ? '✅' : '⚠️'}</span>
+      <div>
+        <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{label}</div>
+        <div style={{ fontSize: '14px', fontWeight: 600, color: ok ? 'var(--gray-800)' : '#D97706' }}>{value}</div>
+      </div>
+    </div>
+  )
 }
