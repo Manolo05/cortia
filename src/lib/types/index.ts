@@ -216,3 +216,19 @@ export interface StatsDashboard {
   taux_acceptation: number
   montant_total_finance: number
 }
+
+// Constante pour la configuration des statuts (utilisée par PipelineBar et autres composants)
+export const STATUTS_DOSSIER = {
+    prospect: { label: 'Prospect', color: 'gray' },
+    nouveau: { label: 'Nouveau', color: 'blue' },
+    en_cours: { label: 'En cours', color: 'yellow' },
+    instruction: { label: 'Instruction', color: 'orange' },
+    analyse: { label: 'Analyse', color: 'purple' },
+    soumis: { label: 'Soumis', color: 'indigo' },
+    accord: { label: 'Accord', color: 'green' },
+    accepte: { label: 'Accepté', color: 'green' },
+    signe: { label: 'Signé', color: 'teal' },
+    debloqueé: { label: 'Débloqué', color: 'cyan' },
+    refuse: { label: 'Refusé', color: 'red' },
+    archive: { label: 'Archivé', color: 'gray' },
+} as const
