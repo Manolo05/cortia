@@ -287,9 +287,9 @@ export default function DossierPage({ params }: { params: { id: string } }) {
             <h2 className="card-title" style={{ marginBottom: '1rem' }}>Actions rapides</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {[
-                { label: '◈ Lancer l\'analyse', href: `/dossiers/${params.id}/analyser` },
+                { label: '◈ Lancer l\'analyse', href: `/dossiers/${params.id}/analyse` },
                 { label: '⊕ Contrôle documents', href: `/dossiers/${params.id}/controle-docs` },
-                { label: '⊛ Synthèse banque', href: `/dossiers/${params.id}/synthetiser` },
+                { label: '⊛ Synthèse banque', href: `/dossiers/${params.id}/synthese` },
                 { label: '↗ Exporter', href: `/dossiers/${params.id}/export` },
               ].map((action, i) => (
                 <Link key={i} href={action.href} style={{
