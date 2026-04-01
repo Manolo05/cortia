@@ -41,7 +41,7 @@ function getScoreColor(score?: number) {
 }
 
 function computeAnalyse(dossier: any, emprunteurs: any[], projet: any, charges: any[]): AnalyseData {
-  const revenus = emprunteurs.reduce((s: number, e: any) => s + (e.revenus_retenus || e.revenus_nets || 0), 0);
+  const revenus = emprunteurs.reduce((s: number, e: any) => s + (e.revenus_retenus || e.revenus_nets || e.salaire_net_mensuel || 0), 0);
   const prixBien = projet?.prix_achat || projet?.prix_bien || 0;
   const travaux = projet?.travaux || projet?.montant_travaux || 0;
   const apport = projet?.apport || projet?.apport_personnel || 0;
