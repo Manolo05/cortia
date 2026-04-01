@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase/client';
 
 interface AnalyseData {
   revenus_retenus?: number;
@@ -42,9 +42,9 @@ function getScoreColor(score?: number) {
 
 function computeAnalyse(dossier: any, emprunteurs: any[], projet: any, charges: any[]): AnalyseData {
   const revenus = emprunteurs.reduce((s: number, e: any) => s + (e.revenus_retenus || e.revenus_nets || 0), 0);
-  const prixBien = projet?.prix_bien || 0;
-  const travaux = projet?.montant_travaux || 0;
-  const apport = projet?.apport_personnel || 0;
+  const prixBien = projet?.prix_achat || projet?.prix_bien || 0;
+  const travaux = projet?.travaux || projet?.montant_travaux || 0;
+  const apport = projet?.apport || projet?.apport_personnel || 0;
   const duree = projet?.duree_souhaitee || 20;
   const totalCharges = charges.reduce((s, c) => s + c.mensualite, 0);
   
@@ -132,7 +132,7 @@ function ScoreBar({ label, value, color }: { label: string; value: number; color
 }
 
 export default function AnalysePage({ params }: { params: { id: string } }) {
-  const supabase = createClientComponentClient();
+  const supabase = createClient();
   const [analyse, setAnalyse] = useState<AnalyseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
