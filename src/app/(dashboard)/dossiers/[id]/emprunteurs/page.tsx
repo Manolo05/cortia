@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@/lib/supabase/client'
 
 interface Emprunteur {
   id: string
@@ -48,7 +48,7 @@ function formatMontant(n?: number) {
 export default function EmprunteursPage() {
   const params = useParams()
   const dossierId = params.id as string
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
 
   const [emprunteurs, setEmprunteurs] = useState<Emprunteur[]>([])
   const [loading, setLoading] = useState(true)
