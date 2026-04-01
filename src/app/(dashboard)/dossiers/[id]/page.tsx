@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase/client';
 
 interface Dossier {
   id: string;
@@ -77,7 +77,7 @@ function getLectureClass(score?: number) {
 }
 
 export default function DossierPage({ params }: { params: { id: string } }) {
-  const supabase = createClientComponentClient();
+  const supabase = createClient();
   const [dossier, setDossier] = useState<Dossier | null>(null);
   const [emprunteurs, setEmprunteurs] = useState<Emprunteur[]>([]);
   const [projet, setProjet] = useState<Projet | null>(null);
