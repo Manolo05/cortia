@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase/client';
 
 function formatCurrency(amount?: number) {
   if (!amount) return '—';
@@ -71,7 +71,7 @@ Généré par CortIA le ${new Date().toLocaleDateString('fr-FR')}`;
 }
 
 export default function ExportPage({ params }: { params: { id: string } }) {
-  const supabase = createClientComponentClient();
+  const supabase = createClient();
   const [dossier, setDossier] = useState<any>(null);
   const [emprunteurs, setEmprunteurs] = useState<any[]>([]);
   const [projet, setProjet] = useState<any>(null);
