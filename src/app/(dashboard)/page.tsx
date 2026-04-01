@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase/client';
 
 interface Dossier {
   id: string;
@@ -67,7 +67,7 @@ function timeAgo(dateStr?: string) {
 }
 
 export default function DashboardPage() {
-  const supabase = createClientComponentClient();
+  const supabase = createClient();
   const [dossiers, setDossiers] = useState<Dossier[]>([]);
   const [loading, setLoading] = useState(true);
   const [cabinetNom, setCabinetNom] = useState('');
