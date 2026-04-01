@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase/client';
 
 interface DossierInfo {
   id: string;
@@ -67,7 +67,7 @@ export default function DossierLayout({
   params: { id: string };
 }) {
   const pathname = usePathname();
-  const supabase = createClientComponentClient();
+  const supabase = createClient();
   const [dossier, setDossier] = useState<DossierInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
