@@ -161,7 +161,6 @@ export async function POST(req: NextRequest) {
         taille_fichier: file.size,
         mime_type: 'application/pdf',
         statut_verification: 'en_attente',
-        cabinet_id: profil?.cabinet_id,
         // Stocker les données extraites dans les notes
         notes: JSON.stringify(donneeesExtraites),
       })
