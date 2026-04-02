@@ -20,17 +20,17 @@ const STATUT_CONFIG: Record<string, { label: string; badge: string; dot: string 
   en_attente: { label: 'En attente', badge: 'badge-warning', dot: '#ca8a04' },
   en_cours:   { label: 'En cours',   badge: 'badge-info',    dot: '#0ea5e9' },
   analyse:    { label: 'En analyse', badge: 'badge-purple',  dot: '#7c3aed' },
-  accorde:    { label: 'Accordé',     badge: 'badge-success', dot: '#16a34a' },
-  refuse:     { label: 'Refusé',     badge: 'badge-danger',  dot: '#dc2626' },
-  archive:    { label: 'Archivé',    badge: 'badge-neutral', dot: '#94a3b8' },
+  accorde:    { label: 'Accorde',    badge: 'badge-success', dot: '#16a34a' },
+  refuse:     { label: 'Refuse',     badge: 'badge-danger',  dot: '#dc2626' },
+  archive:    { label: 'Archive',    badge: 'badge-neutral', dot: '#94a3b8' },
 }
 
 const PIPELINE_STAGES = [
-  { key: 'collecte',   label: 'Collecte',    color: '#94a3b8', match: (d: Dossier) => d.statut === 'en_attente' },
-  { key: 'analyse',    label: 'Analyse',     color: '#7c3aed', match: (d: Dossier) => d.statut === 'analyse' },
-  { key: 'en_cours',   label: 'En cours',    color: '#0ea5e9', match: (d: Dossier) => d.statut === 'en_cours' },
-  { key: 'pret_banque',label: 'Prêt banque', color: '#16a34a', match: (d: Dossier) => d.statut === 'accorde' && (d.score_global || 0) >= 70 },
-  { key: 'envoye',     label: 'Envoyé',     color: '#1e40af', match: (d: Dossier) => d.statut === 'accorde' },
+  { key: 'collecte',    label: 'Collecte',    color: '#94a3b8', matchFn: (d: Dossier) => d.statut === 'en_attente' },
+  { key: 'analyse',     label: 'Analyse',     color: '#7c3aed', matchFn: (d: Dossier) => d.statut === 'analyse' },
+  { key: 'en_cours',    label: 'En cours',    color: '#0ea5e9', matchFn: (d: Dossier) => d.statut === 'en_cours' },
+  { key: 'pret_banque', label: 'Pret banque', color: '#16a34a', matchFn: (d: Dossier) => d.statut === 'accorde' && (d.score_global || 0) >= 70 },
+  { key: 'envoye',      label: 'Envoye',      color: '#1e40af', matchFn: (d: Dossier) => d.statut === 'accorde' },
 ]
 
 function getScoreColor(score?: number): string {
@@ -50,8 +50,7 @@ function getScoreBg(score?: number): string {
 }
 
 function formatCurrency(amount?: number): string {
-  if (!amount) return '—'
-  if (amount >= 1000000) return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(amount)
+  if (!amount) return '\u2014'
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(amount)
 }
 
@@ -60,33 +59,40 @@ function timeAgo(dateStr?: string): string {
   const date = new Date(dateStr)
   const now = new Date()
   const diff = Math.floor((now.getTime() - date.getTime()) / 1000)
-  if (diff < 60) return 'à l'instant'
-  if (diff < 3600) return `il y a ${Math.floor(diff / 60)}min`
-  if (diff < 86400) return `il y a ${Math.floor(diff / 3600)}h`
-  if (diff < 604800) return `il y a ${Math.floor(diff / 86400)}j`
+  if (diff < 60) return 'a l instant'
+  if (diff < 3600) return 'il y a ' + Math.floor(diff / 60) + 'min'
+  if (diff < 86400) return 'il y a ' + Math.floor(diff / 3600) + 'h'
+  if (diff < 604800) return 'il y a ' + Math.floor(diff / 86400) + 'j'
   return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
 }
 
-function generateActions(dossiers: Dossier[]): Array<{ type: string; label: string; sub: string; color: string; bg: string; icon: string; href: string }> {
-  const actions = []
+interface ActionItem {
+  label: string
+  sub: string
+  color: string
+  bg: string
+  icon: string
+  href: string
+}
+
+function generateActions(dossiers: Dossier[]): ActionItem[] {
+  const actions: ActionItem[] = []
   const docs_manquants = dossiers.filter(d => d.statut === 'en_attente')
   if (docs_manquants.length > 0) {
     actions.push({
-      type: 'docs',
-      label: `${docs_manquants.length} dossier(s) en attente de pièces`,
-      sub: 'Relancer les emprunteurs pour compléter leurs documents',
+      label: docs_manquants.length + ' dossier(s) en attente de pieces',
+      sub: 'Relancer les emprunteurs pour completer leurs documents',
       color: '#ca8a04',
       bg: 'var(--risk-medium-bg)',
       icon: '\u{1F4CE}',
-      href: '/dossiers?statut=en_attente'
+      href: '/dossiers'
     })
   }
   const score_faibles = dossiers.filter(d => (d.score_global || 0) > 0 && (d.score_global || 0) < 45)
   if (score_faibles.length > 0) {
     actions.push({
-      type: 'score',
-      label: `${score_faibles.length} dossier(s) avec score faible`,
-      sub: 'Vérifier les anomalies et corriger avant soumission',
+      label: score_faibles.length + ' dossier(s) avec score faible',
+      sub: 'Verifier les anomalies et corriger avant soumission',
       color: '#dc2626',
       bg: 'var(--risk-critical-bg)',
       icon: '\u26A0\uFE0F',
@@ -96,9 +102,8 @@ function generateActions(dossiers: Dossier[]): Array<{ type: string; label: stri
   const prets = dossiers.filter(d => (d.score_global || 0) >= 70 && d.statut !== 'accorde' && d.statut !== 'archive')
   if (prets.length > 0) {
     actions.push({
-      type: 'ready',
-      label: `${prets.length} dossier(s) prêts pour soumission`,
-      sub: 'Scores solides — préparer le dossier banque',
+      label: prets.length + ' dossier(s) prets pour soumission',
+      sub: 'Scores solides - preparer le dossier banque',
       color: '#16a34a',
       bg: 'var(--risk-low-bg)',
       icon: '\u2705',
@@ -108,20 +113,18 @@ function generateActions(dossiers: Dossier[]): Array<{ type: string; label: stri
   const en_analyse = dossiers.filter(d => d.statut === 'analyse')
   if (en_analyse.length > 0) {
     actions.push({
-      type: 'analyse',
-      label: `${en_analyse.length} dossier(s) en cours d’analyse`,
-      sub: 'Contrôle documentaire et cohérence à finaliser',
+      label: en_analyse.length + ' dossier(s) en cours d analyse',
+      sub: 'Controle documentaire et coherence a finaliser',
       color: '#7c3aed',
       bg: '#f5f3ff',
       icon: '\u{1F50D}',
-      href: '/dossiers?statut=analyse'
+      href: '/dossiers'
     })
   }
   if (actions.length === 0) {
     actions.push({
-      type: 'ok',
       label: 'Aucune action urgente',
-      sub: 'Votre activité est à jour',
+      sub: 'Votre activite est a jour',
       color: '#16a34a',
       bg: 'var(--risk-low-bg)',
       icon: '\u2728',
@@ -136,12 +139,8 @@ export default function DashboardPage() {
   const [dossiers, setDossiers] = useState<Dossier[]>([])
   const [loading, setLoading] = useState(true)
   const [cabinetNom, setCabinetNom] = useState('')
-  const [heure] = useState(() => {
-    const h = new Date().getHours()
-    if (h < 12) return 'Bonjour'
-    if (h < 18) return 'Bon après-midi'
-    return 'Bonsoir'
-  })
+  const h = new Date().getHours()
+  const greeting = h < 12 ? 'Bonjour' : h < 18 ? 'Bon apres-midi' : 'Bonsoir'
 
   useEffect(() => {
     const load = async () => {
@@ -173,22 +172,20 @@ export default function DashboardPage() {
   const avgScore = withScore.length > 0 ? Math.round(withScore.reduce((s, d) => s + (d.score_global || 0), 0) / withScore.length) : 0
   const volumeTotal = dossiers.reduce((s, d) => s + (d.montant_projet || 0), 0)
   const anomalies = dossiers.filter(d => (d.score_global || 0) > 0 && (d.score_global || 0) < 50).length
-  const avgEndettement = dossiers.filter(d => (d.taux_endettement || 0) > 0).length > 0
-    ? Math.round(dossiers.filter(d => d.taux_endettement).reduce((s, d) => s + (d.taux_endettement || 0), 0) / dossiers.filter(d => d.taux_endettement).length)
-    : 0
 
   const actions = generateActions(dossiers)
-  const aRisque = dossiers.filter(d => (d.niveau_risque === 'eleve' || d.niveau_risque === 'critique') || ((d.score_global || 0) > 0 && (d.score_global || 0) < 45)).slice(0, 5)
+  const aRisque = dossiers.filter(d => ((d.score_global || 0) > 0 && (d.score_global || 0) < 45) || d.statut === 'en_attente').slice(0, 5)
   const pretsBanque = dossiers.filter(d => (d.score_global || 0) >= 70 && d.statut !== 'refuse' && d.statut !== 'archive').slice(0, 5)
   const recent = dossiers.slice(0, 6)
+  const todayStr = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
 
   const kpis = [
-    { label: 'Dossiers actifs', value: actifs, icon: '\u25CE', color: '#0ea5e9', accent: '#0ea5e9', sub: `sur ${total} total` },
-    { label: 'Prêts banque', value: pretsBank, icon: '\u2713', color: '#16a34a', accent: '#16a34a', sub: 'Score ≥ 70/100' },
-    { label: 'À corriger', value: aCorreiger, icon: '\u26A0', color: aCorreiger > 0 ? '#ea580c' : '#16a34a', accent: aCorreiger > 0 ? '#ea580c' : '#16a34a', sub: 'Attention requise' },
-    { label: 'Score moyen', value: avgScore ? avgScore + '/100' : '—', icon: '\u25C8', color: getScoreColor(avgScore), accent: getScoreColor(avgScore), sub: 'Financiéabilité' },
-    { label: 'Anomalies docs', value: anomalies, icon: '\u{1F50D}', color: anomalies > 0 ? '#dc2626' : '#16a34a', accent: anomalies > 0 ? '#dc2626' : '#16a34a', sub: 'Cohérence doc.' },
-    { label: 'Volume total', value: formatCurrency(volumeTotal), icon: '\u20AC', color: '#1e40af', accent: '#1e40af', sub: 'Projets en cours' },
+    { label: 'Dossiers actifs',   value: String(actifs),     icon: '\u25CE', color: '#0ea5e9', accent: '#0ea5e9', sub: 'sur ' + total + ' total' },
+    { label: 'Prets banque',      value: String(pretsBank),  icon: '\u2713', color: '#16a34a', accent: '#16a34a', sub: 'Score >= 70/100' },
+    { label: 'A corriger',        value: String(aCorreiger), icon: '\u26A0', color: aCorreiger > 0 ? '#ea580c' : '#16a34a', accent: aCorreiger > 0 ? '#ea580c' : '#16a34a', sub: 'Attention requise' },
+    { label: 'Score moyen',       value: avgScore ? avgScore + '/100' : '\u2014', icon: '\u25C8', color: getScoreColor(avgScore), accent: getScoreColor(avgScore), sub: 'Financiabilite' },
+    { label: 'Anomalies docs',    value: String(anomalies),  icon: '\u{1F50D}', color: anomalies > 0 ? '#dc2626' : '#16a34a', accent: anomalies > 0 ? '#dc2626' : '#16a34a', sub: 'Coherence doc.' },
+    { label: 'Volume total',      value: formatCurrency(volumeTotal), icon: '\u20AC', color: '#1e40af', accent: '#1e40af', sub: 'Projets en cours' },
   ]
 
   if (loading) {
@@ -204,20 +201,16 @@ export default function DashboardPage() {
 
   return (
     <div className="page-container">
-
-      {/* Header */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">{heure}{cabinetNom ? ', ' + cabinetNom : ''} \u{1F44B}</h1>
-          <p className="page-subtitle">Voici l&apos;état de votre activité aujourd’hui — {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          <h1 className="page-title">{greeting}{cabinetNom ? ', ' + cabinetNom : ''}</h1>
+          <p className="page-subtitle">{'Etat de votre activite — ' + todayStr}</p>
         </div>
-        <Link href="/dossiers/nouveau" className="btn-primary">
-          + Nouveau dossier
-        </Link>
+        <Link href="/dossiers/nouveau" className="btn-primary">+ Nouveau dossier</Link>
       </div>
 
       {/* KPI Grid */}
-      <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(6, 1fr)', gap: '14px', marginBottom: '28px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '14px', marginBottom: '28px' }}>
         {kpis.map((kpi, i) => (
           <div key={i} className="kpi-card" style={{ padding: '18px 16px' }}>
             <div className="kpi-card-accent" style={{ background: kpi.accent }} />
@@ -231,26 +224,24 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Pipeline cabinet */}
+      {/* Pipeline */}
       <div className="card" style={{ marginBottom: '24px', padding: '20px 24px' }}>
         <div className="section-header" style={{ marginBottom: '16px' }}>
           <div>
             <div className="section-title">Pipeline cabinet</div>
             <div className="section-subtitle">{total} dossiers au total</div>
           </div>
-          <Link href="/dossiers" className="btn-ghost" style={{ fontSize: '12px', color: 'var(--brand-primary)' }}>
-            Voir tous →
-          </Link>
+          <Link href="/dossiers" className="btn-ghost" style={{ fontSize: '12px', color: 'var(--brand-primary)' }}>Voir tous</Link>
         </div>
         <div className="pipeline-track">
           {PIPELINE_STAGES.map((stage) => {
-            const count = dossiers.filter(stage.match).length
+            const count = dossiers.filter(stage.matchFn).length
             const pct = total > 0 ? Math.round((count / total) * 100) : 0
             return (
-              <Link key={stage.key} href={`/dossiers?statut=${stage.key}`} className="pipeline-stage" style={{ textDecoration: 'none' }}>
+              <Link key={stage.key} href="/dossiers" className="pipeline-stage" style={{ textDecoration: 'none' }}>
                 <div className="pipeline-stage-count" style={{ color: count > 0 ? stage.color : 'var(--text-muted)' }}>{count}</div>
                 <div className="pipeline-stage-label">{stage.label}</div>
-                <div className="pipeline-stage-bar" style={{ background: count > 0 ? stage.color : 'var(--surface-3)', opacity: 0.8 }} />
+                <div className="pipeline-stage-bar" style={{ background: count > 0 ? stage.color : 'var(--surface-3)' }} />
                 <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '-2px' }}>{pct}%</div>
               </Link>
             )
@@ -258,10 +249,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Actions prioritaires + Dossiers à surveiller */}
+      {/* Actions + A risque */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
-
-        {/* Actions prioritaires */}
         <div className="card">
           <div className="card-header">
             <h2 className="card-title">
@@ -284,12 +273,11 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Dossiers à surveiller */}
         <div className="card">
           <div className="card-header">
             <h2 className="card-title">
               <span style={{ background: '#fef2f2', color: '#dc2626', width: '22px', height: '22px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' }}>\u26A0</span>
-              Dossiers à surveiller
+              Dossiers a surveiller
             </h2>
             <span className="badge badge-danger" style={{ fontSize: '10px' }}>{aRisque.length}</span>
           </div>
@@ -297,28 +285,23 @@ export default function DashboardPage() {
             <div className="empty-state" style={{ padding: '32px 0' }}>
               <div className="empty-state-icon">\u2705</div>
               <div className="empty-state-title">Tous les dossiers sont en ordre</div>
-              <div className="empty-state-desc">Aucun dossier n’affiche de signal d’alerte.</div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {aRisque.map(d => {
-                const sc = d.statut ? STATUT_CONFIG[d.statut] : STATUT_CONFIG.en_attente
+                const sc = STATUT_CONFIG[d.statut] || STATUT_CONFIG.en_attente
                 return (
-                  <Link key={d.id} href={`/dossiers/${d.id}`} className="dossier-row" style={{ textDecoration: 'none', padding: '10px 14px' }}>
-                    <div className="avatar" style={{ background: d.score_global && d.score_global < 45 ? '#fee2e2' : '#fef3c7', color: d.score_global && d.score_global < 45 ? '#dc2626' : '#92400e', width: '32px', height: '32px', fontSize: '12px' }}>
+                  <Link key={d.id} href={'/dossiers/' + d.id} className="dossier-row" style={{ textDecoration: 'none', padding: '10px 14px' }}>
+                    <div className="avatar" style={{ background: (d.score_global || 0) < 45 ? '#fee2e2' : '#fef3c7', color: (d.score_global || 0) < 45 ? '#dc2626' : '#92400e', width: '32px', height: '32px', fontSize: '12px' }}>
                       {(d.nom_client || 'C').charAt(0).toUpperCase()}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.nom_client || 'Client inconnu'}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '1px' }}>{formatCurrency(d.montant_projet)}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{formatCurrency(d.montant_projet)}</div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                      {d.score_global ? (
-                        <span style={{ fontSize: '13px', fontWeight: 700, color: getScoreColor(d.score_global), background: getScoreBg(d.score_global), padding: '2px 7px', borderRadius: '6px' }}>
-                          {d.score_global}
-                        </span>
-                      ) : null}
-                      <span className={`badge ${sc?.badge || 'badge-neutral'}`} style={{ fontSize: '10px' }}>{sc?.label || d.statut}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {d.score_global ? <span style={{ fontSize: '13px', fontWeight: 700, color: getScoreColor(d.score_global), background: getScoreBg(d.score_global), padding: '2px 7px', borderRadius: '6px' }}>{d.score_global}</span> : null}
+                      <span className={'badge ' + sc.badge} style={{ fontSize: '10px' }}>{sc.label}</span>
                     </div>
                   </Link>
                 )
@@ -328,53 +311,43 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Dossiers prêts banque + Activité récente */}
+      {/* Prets banque + Activite recente */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-
-        {/* Prêts banque */}
         <div className="card">
           <div className="card-header">
             <h2 className="card-title">
               <span style={{ background: '#dcfce7', color: '#16a34a', width: '22px', height: '22px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' }}>\u2713</span>
-              Prêts pour la banque
+              Prets pour la banque
             </h2>
             <span className="badge badge-success" style={{ fontSize: '10px' }}>{pretsBanque.length}</span>
           </div>
           {pretsBanque.length === 0 ? (
             <div className="empty-state" style={{ padding: '32px 0' }}>
               <div className="empty-state-icon">\u{1F3E6}</div>
-              <div className="empty-state-title">Aucun dossier prêt</div>
-              <div className="empty-state-desc">Les dossiers avec un score ≥ 70 apparaîtront ici.</div>
+              <div className="empty-state-title">Aucun dossier pret</div>
+              <div className="empty-state-desc">Les dossiers avec un score >= 70 apparaitront ici.</div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {pretsBanque.map(d => (
-                <Link key={d.id} href={`/dossiers/${d.id}/synthese`} className="dossier-row" style={{ textDecoration: 'none', padding: '10px 14px', borderColor: 'var(--risk-low-border)', background: 'var(--risk-low-bg)' }}>
-                  <div className="avatar" style={{ background: '#16a34a', width: '32px', height: '32px', fontSize: '12px' }}>
-                    {(d.nom_client || 'C').charAt(0).toUpperCase()}
-                  </div>
+                <Link key={d.id} href={'/dossiers/' + d.id + '/synthese'} className="dossier-row" style={{ textDecoration: 'none', padding: '10px 14px', borderColor: 'var(--risk-low-border)', background: 'var(--risk-low-bg)' }}>
+                  <div className="avatar" style={{ background: '#16a34a', width: '32px', height: '32px', fontSize: '12px' }}>{(d.nom_client || 'C').charAt(0).toUpperCase()}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.nom_client || 'Client inconnu'}</div>
-                    <div style={{ fontSize: '11px', color: '#16a34a', marginTop: '1px', fontWeight: 500 }}>{formatCurrency(d.montant_projet)}</div>
+                    <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 500 }}>{formatCurrency(d.montant_projet)}</div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#16a34a', background: 'white', padding: '2px 7px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
-                      {d.score_global}
-                    </span>
-                    <span style={{ fontSize: '10px', color: '#16a34a' }}>Voir synthèse →</span>
-                  </div>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#16a34a', background: 'white', padding: '2px 7px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>{d.score_global}</span>
                 </Link>
               ))}
             </div>
           )}
         </div>
 
-        {/* Activite recente */}
         <div className="card">
           <div className="card-header">
             <h2 className="card-title">
               <span style={{ background: '#f0f9ff', color: '#0ea5e9', width: '22px', height: '22px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' }}>\u25D7</span>
-              Activité récente
+              Activite recente
             </h2>
             <Link href="/dossiers" className="badge badge-neutral" style={{ textDecoration: 'none', fontSize: '10px' }}>Tous</Link>
           </div>
@@ -382,23 +355,20 @@ export default function DashboardPage() {
             <div className="empty-state" style={{ padding: '32px 0' }}>
               <div className="empty-state-icon">\u{1F4C2}</div>
               <div className="empty-state-title">Aucun dossier</div>
-              <div className="empty-state-desc">Créez votre premier dossier pour démarrer.</div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {recent.map(d => {
-                const sc = d.statut ? STATUT_CONFIG[d.statut] : STATUT_CONFIG.en_attente
+                const sc = STATUT_CONFIG[d.statut] || STATUT_CONFIG.en_attente
                 return (
-                  <Link key={d.id} href={`/dossiers/${d.id}`} className="dossier-row" style={{ textDecoration: 'none', padding: '9px 12px' }}>
-                    <div className="avatar" style={{ background: 'var(--brand-primary)', width: '30px', height: '30px', fontSize: '11px' }}>
-                      {(d.nom_client || 'C').charAt(0).toUpperCase()}
-                    </div>
+                  <Link key={d.id} href={'/dossiers/' + d.id} className="dossier-row" style={{ textDecoration: 'none', padding: '9px 12px' }}>
+                    <div className="avatar" style={{ background: 'var(--brand-primary)', width: '30px', height: '30px', fontSize: '11px' }}>{(d.nom_client || 'C').charAt(0).toUpperCase()}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.nom_client || 'Client inconnu'}</div>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{formatCurrency(d.montant_projet)}</div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px', flexShrink: 0 }}>
-                      <span className={`badge ${sc?.badge || 'badge-neutral'}`} style={{ fontSize: '10px' }}>{sc?.label || d.statut}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' }}>
+                      <span className={'badge ' + sc.badge} style={{ fontSize: '10px' }}>{sc.label}</span>
                       <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{timeAgo(d.updated_at)}</span>
                     </div>
                   </Link>
@@ -407,13 +377,10 @@ export default function DashboardPage() {
             </div>
           )}
           <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-light)', textAlign: 'center' }}>
-            <Link href="/dossiers" style={{ fontSize: '12px', color: 'var(--brand-primary)', textDecoration: 'none', fontWeight: 500 }}>
-              Voir tous les dossiers →
-            </Link>
+            <Link href="/dossiers" style={{ fontSize: '12px', color: 'var(--brand-primary)', textDecoration: 'none', fontWeight: 500 }}>Voir tous les dossiers</Link>
           </div>
         </div>
       </div>
-
     </div>
   )
 }
