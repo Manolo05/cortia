@@ -18,19 +18,19 @@ interface Dossier {
 
 const STATUT_CONFIG: Record<string, { label: string; badge: string; dot: string }> = {
   en_attente: { label: 'En attente', badge: 'badge-warning', dot: '#ca8a04' },
-  en_cours:   { label: 'En cours',   badge: 'badge-info',    dot: '#0ea5e9' },
-  analyse:    { label: 'En analyse', badge: 'badge-purple',  dot: '#7c3aed' },
-  accorde:    { label: 'Accorde',    badge: 'badge-success', dot: '#16a34a' },
-  refuse:     { label: 'Refuse',     badge: 'badge-danger',  dot: '#dc2626' },
-  archive:    { label: 'Archive',    badge: 'badge-neutral', dot: '#94a3b8' },
+  en_cours: { label: 'En cours', badge: 'badge-info', dot: '#0ea5e9' },
+  analyse: { label: 'En analyse', badge: 'badge-purple', dot: '#7c3aed' },
+  accorde: { label: 'Accorde', badge: 'badge-success', dot: '#16a34a' },
+  refuse: { label: 'Refuse', badge: 'badge-danger', dot: '#dc2626' },
+  archive: { label: 'Archive', badge: 'badge-neutral', dot: '#94a3b8' },
 }
 
 const PIPELINE_STAGES = [
-  { key: 'collecte',    label: 'Collecte',    color: '#94a3b8', matchFn: (d: Dossier) => d.statut === 'en_attente' },
-  { key: 'analyse',     label: 'Analyse',     color: '#7c3aed', matchFn: (d: Dossier) => d.statut === 'analyse' },
-  { key: 'en_cours',    label: 'En cours',    color: '#0ea5e9', matchFn: (d: Dossier) => d.statut === 'en_cours' },
+  { key: 'collecte', label: 'Collecte', color: '#94a3b8', matchFn: (d: Dossier) => d.statut === 'en_attente' },
+  { key: 'analyse', label: 'Analyse', color: '#7c3aed', matchFn: (d: Dossier) => d.statut === 'analyse' },
+  { key: 'en_cours', label: 'En cours', color: '#0ea5e9', matchFn: (d: Dossier) => d.statut === 'en_cours' },
   { key: 'pret_banque', label: 'Pret banque', color: '#16a34a', matchFn: (d: Dossier) => d.statut === 'accorde' && (d.score_global || 0) >= 70 },
-  { key: 'envoye',      label: 'Envoye',      color: '#1e40af', matchFn: (d: Dossier) => d.statut === 'accorde' },
+  { key: 'envoye', label: 'Envoye', color: '#1e40af', matchFn: (d: Dossier) => d.statut === 'accorde' },
 ]
 
 function getScoreColor(score?: number): string {
@@ -50,7 +50,7 @@ function getScoreBg(score?: number): string {
 }
 
 function formatCurrency(amount?: number): string {
-  if (!amount) return '\u2014'
+  if (!amount) return '-'
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(amount)
 }
 
@@ -71,7 +71,7 @@ interface ActionItem {
   sub: string
   color: string
   bg: string
-  icon: string
+  tag: string
   href: string
 }
 
@@ -79,57 +79,22 @@ function generateActions(dossiers: Dossier[]): ActionItem[] {
   const actions: ActionItem[] = []
   const docs_manquants = dossiers.filter(d => d.statut === 'en_attente')
   if (docs_manquants.length > 0) {
-    actions.push({
-      label: docs_manquants.length + ' dossier(s) en attente de pieces',
-      sub: 'Relancer les emprunteurs pour completer leurs documents',
-      color: '#ca8a04',
-      bg: 'var(--risk-medium-bg)',
-      icon: '\u{1F4CE}',
-      href: '/dossiers'
-    })
+    actions.push({ label: docs_manquants.length + ' dossier(s) en attente de pieces', sub: 'Relancer les emprunteurs pour completer leurs documents', color: '#ca8a04', bg: 'var(--risk-medium-bg)', tag: 'Docs', href: '/dossiers' })
   }
   const score_faibles = dossiers.filter(d => (d.score_global || 0) > 0 && (d.score_global || 0) < 45)
   if (score_faibles.length > 0) {
-    actions.push({
-      label: score_faibles.length + ' dossier(s) avec score faible',
-      sub: 'Verifier les anomalies et corriger avant soumission',
-      color: '#dc2626',
-      bg: 'var(--risk-critical-bg)',
-      icon: '\u26A0\uFE0F',
-      href: '/dossiers'
-    })
+    actions.push({ label: score_faibles.length + ' dossier(s) avec score faible', sub: 'Verifier les anomalies et corriger avant soumission', color: '#dc2626', bg: 'var(--risk-critical-bg)', tag: 'Alerte', href: '/dossiers' })
   }
   const prets = dossiers.filter(d => (d.score_global || 0) >= 70 && d.statut !== 'accorde' && d.statut !== 'archive')
   if (prets.length > 0) {
-    actions.push({
-      label: prets.length + ' dossier(s) prets pour soumission',
-      sub: 'Scores solides - preparer le dossier banque',
-      color: '#16a34a',
-      bg: 'var(--risk-low-bg)',
-      icon: '\u2705',
-      href: '/dossiers'
-    })
+    actions.push({ label: prets.length + ' dossier(s) prets pour soumission', sub: 'Scores solides - preparer le dossier banque', color: '#16a34a', bg: 'var(--risk-low-bg)', tag: 'Pret', href: '/dossiers' })
   }
   const en_analyse = dossiers.filter(d => d.statut === 'analyse')
   if (en_analyse.length > 0) {
-    actions.push({
-      label: en_analyse.length + ' dossier(s) en cours d analyse',
-      sub: 'Controle documentaire et coherence a finaliser',
-      color: '#7c3aed',
-      bg: '#f5f3ff',
-      icon: '\u{1F50D}',
-      href: '/dossiers'
-    })
+    actions.push({ label: en_analyse.length + ' dossier(s) en cours d analyse', sub: 'Controle documentaire et coherence a finaliser', color: '#7c3aed', bg: '#f5f3ff', tag: 'IA', href: '/dossiers' })
   }
   if (actions.length === 0) {
-    actions.push({
-      label: 'Aucune action urgente',
-      sub: 'Votre activite est a jour',
-      color: '#16a34a',
-      bg: 'var(--risk-low-bg)',
-      icon: '\u2728',
-      href: '/dossiers'
-    })
+    actions.push({ label: 'Aucune action urgente', sub: 'Votre activite est a jour', color: '#16a34a', bg: 'var(--risk-low-bg)', tag: 'OK', href: '/dossiers' })
   }
   return actions
 }
@@ -139,8 +104,9 @@ export default function DashboardPage() {
   const [dossiers, setDossiers] = useState<Dossier[]>([])
   const [loading, setLoading] = useState(true)
   const [cabinetNom, setCabinetNom] = useState('')
+
   const h = new Date().getHours()
-  const greeting = h < 12 ? 'Bonjour' : h < 18 ? 'Bon apres-midi' : 'Bonsoir'
+  const salutation = h < 12 ? 'Bonjour' : h < 18 ? 'Bon apres-midi' : 'Bonsoir'
 
   useEffect(() => {
     const load = async () => {
@@ -167,7 +133,7 @@ export default function DashboardPage() {
   const total = dossiers.length
   const actifs = dossiers.filter(d => ['en_cours', 'analyse'].includes(d.statut)).length
   const pretsBank = dossiers.filter(d => (d.score_global || 0) >= 70 && d.statut !== 'refuse' && d.statut !== 'archive').length
-  const aCorreiger = dossiers.filter(d => d.statut === 'en_attente' || ((d.score_global || 0) > 0 && (d.score_global || 0) < 40)).length
+  const aCorreger = dossiers.filter(d => d.statut === 'en_attente' || ((d.score_global || 0) > 0 && (d.score_global || 0) < 40)).length
   const withScore = dossiers.filter(d => (d.score_global || 0) > 0)
   const avgScore = withScore.length > 0 ? Math.round(withScore.reduce((s, d) => s + (d.score_global || 0), 0) / withScore.length) : 0
   const volumeTotal = dossiers.reduce((s, d) => s + (d.montant_projet || 0), 0)
@@ -180,12 +146,12 @@ export default function DashboardPage() {
   const todayStr = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
 
   const kpis = [
-    { label: 'Dossiers actifs',   value: String(actifs),     icon: '\u25CE', color: '#0ea5e9', accent: '#0ea5e9', sub: 'sur ' + total + ' total' },
-    { label: 'Prets banque',      value: String(pretsBank),  icon: '\u2713', color: '#16a34a', accent: '#16a34a', sub: 'Score >= 70/100' },
-    { label: 'A corriger',        value: String(aCorreiger), icon: '\u26A0', color: aCorreiger > 0 ? '#ea580c' : '#16a34a', accent: aCorreiger > 0 ? '#ea580c' : '#16a34a', sub: 'Attention requise' },
-    { label: 'Score moyen',       value: avgScore ? avgScore + '/100' : '\u2014', icon: '\u25C8', color: getScoreColor(avgScore), accent: getScoreColor(avgScore), sub: 'Financiabilite' },
-    { label: 'Anomalies docs',    value: String(anomalies),  icon: '\u{1F50D}', color: anomalies > 0 ? '#dc2626' : '#16a34a', accent: anomalies > 0 ? '#dc2626' : '#16a34a', sub: 'Coherence doc.' },
-    { label: 'Volume total',      value: formatCurrency(volumeTotal), icon: '\u20AC', color: '#1e40af', accent: '#1e40af', sub: 'Projets en cours' },
+    { label: 'Dossiers actifs', value: String(actifs), color: '#0ea5e9', sub: 'sur ' + total + ' total' },
+    { label: 'Prets banque', value: String(pretsBank), color: '#16a34a', sub: 'Score superieur a 70' },
+    { label: 'A corriger', value: String(aCorreger), color: aCorreger > 0 ? '#ea580c' : '#16a34a', sub: 'Attention requise' },
+    { label: 'Score moyen', value: avgScore ? avgScore + '/100' : '-', color: getScoreColor(avgScore), sub: 'Financiabilite' },
+    { label: 'Anomalies docs', value: String(anomalies), color: anomalies > 0 ? '#dc2626' : '#16a34a', sub: 'Coherence docs' },
+    { label: 'Volume total', value: formatCurrency(volumeTotal), color: '#1e40af', sub: 'Projets en cours' },
   ]
 
   if (loading) {
@@ -203,20 +169,17 @@ export default function DashboardPage() {
     <div className="page-container">
       <div className="page-header">
         <div>
-          <h1 className="page-title">{greeting}{cabinetNom ? ', ' + cabinetNom : ''}</h1>
-          <p className="page-subtitle">{'Etat de votre activite — ' + todayStr}</p>
+          <h1 className="page-title">{salutation}{cabinetNom ? ', ' + cabinetNom : ''}</h1>
+          <p className="page-subtitle">{'Etat de votre activite - ' + todayStr}</p>
         </div>
         <Link href="/dossiers/nouveau" className="btn-primary">+ Nouveau dossier</Link>
       </div>
 
-      {/* KPI Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '14px', marginBottom: '28px' }}>
         {kpis.map((kpi, i) => (
           <div key={i} className="kpi-card" style={{ padding: '18px 16px' }}>
-            <div className="kpi-card-accent" style={{ background: kpi.accent }} />
             <div className="kpi-header">
               <span className="kpi-label">{kpi.label}</span>
-              <span style={{ fontSize: '15px', color: kpi.color }}>{kpi.icon}</span>
             </div>
             <div className="kpi-value" style={{ color: kpi.color, fontSize: '24px' }}>{kpi.value}</div>
             <div className="kpi-trend">{kpi.sub}</div>
@@ -224,7 +187,6 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Pipeline */}
       <div className="card" style={{ marginBottom: '24px', padding: '20px 24px' }}>
         <div className="section-header" style={{ marginBottom: '16px' }}>
           <div>
@@ -249,25 +211,21 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Actions + A risque */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
         <div className="card">
           <div className="card-header">
-            <h2 className="card-title">
-              <span style={{ background: '#fef3c7', color: '#92400e', width: '22px', height: '22px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' }}>\u26A1</span>
-              Actions prioritaires
-            </h2>
+            <h2 className="card-title">Actions prioritaires</h2>
             <span className="badge badge-warning" style={{ fontSize: '10px' }}>{actions.length}</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {actions.map((action, i) => (
               <Link key={i} href={action.href} className="action-item" style={{ textDecoration: 'none' }}>
-                <div className="action-icon" style={{ background: action.bg, fontSize: '16px' }}>{action.icon}</div>
+                <div className="action-icon" style={{ background: action.bg, fontSize: '11px', fontWeight: 700, color: action.color, padding: '4px 8px', borderRadius: '6px', minWidth: '40px', textAlign: 'center' }}>{action.tag}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: action.color, lineHeight: '1.3' }}>{action.label}</div>
                   <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px', lineHeight: '1.3' }}>{action.sub}</div>
                 </div>
-                <span style={{ color: 'var(--text-muted)', fontSize: '14px', flexShrink: 0 }}>\u203A</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '14px', flexShrink: 0 }}>{'>'}</span>
               </Link>
             ))}
           </div>
@@ -275,15 +233,11 @@ export default function DashboardPage() {
 
         <div className="card">
           <div className="card-header">
-            <h2 className="card-title">
-              <span style={{ background: '#fef2f2', color: '#dc2626', width: '22px', height: '22px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' }}>\u26A0</span>
-              Dossiers a surveiller
-            </h2>
+            <h2 className="card-title">Dossiers a surveiller</h2>
             <span className="badge badge-danger" style={{ fontSize: '10px' }}>{aRisque.length}</span>
           </div>
           {aRisque.length === 0 ? (
             <div className="empty-state" style={{ padding: '32px 0' }}>
-              <div className="empty-state-icon">\u2705</div>
               <div className="empty-state-title">Tous les dossiers sont en ordre</div>
             </div>
           ) : (
@@ -311,21 +265,16 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Prets banque + Activite recente */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
         <div className="card">
           <div className="card-header">
-            <h2 className="card-title">
-              <span style={{ background: '#dcfce7', color: '#16a34a', width: '22px', height: '22px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' }}>\u2713</span>
-              Prets pour la banque
-            </h2>
+            <h2 className="card-title">Prets pour la banque</h2>
             <span className="badge badge-success" style={{ fontSize: '10px' }}>{pretsBanque.length}</span>
           </div>
           {pretsBanque.length === 0 ? (
             <div className="empty-state" style={{ padding: '32px 0' }}>
-              <div className="empty-state-icon">\u{1F3E6}</div>
               <div className="empty-state-title">Aucun dossier pret</div>
-              <div className="empty-state-desc">Les dossiers avec un score >= 70 apparaitront ici.</div>
+              <div className="empty-state-desc">Les dossiers avec un score superieur a 70 apparaitront ici.</div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -345,15 +294,11 @@ export default function DashboardPage() {
 
         <div className="card">
           <div className="card-header">
-            <h2 className="card-title">
-              <span style={{ background: '#f0f9ff', color: '#0ea5e9', width: '22px', height: '22px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' }}>\u25D7</span>
-              Activite recente
-            </h2>
+            <h2 className="card-title">Activite recente</h2>
             <Link href="/dossiers" className="badge badge-neutral" style={{ textDecoration: 'none', fontSize: '10px' }}>Tous</Link>
           </div>
           {recent.length === 0 ? (
             <div className="empty-state" style={{ padding: '32px 0' }}>
-              <div className="empty-state-icon">\u{1F4C2}</div>
               <div className="empty-state-title">Aucun dossier</div>
             </div>
           ) : (
