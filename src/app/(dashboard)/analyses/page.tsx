@@ -134,42 +134,42 @@ export default function AnalysesPage() {
         <div className="page-container">
               <div className="page-header">
                       <div>
-                                <h1 className="page-title">Analyses</h1>h1>
-                                <p className="page-subtitle">{analyses.length} dossier{analyses.length > 1 ? 's' : ''} • {analysesAvecScore.length} analysé{analysesAvecScore.length > 1 ? 's' : ''}</p>p>
-                      </div>div>
-              </div>div>
+                                <h1 className="page-title">Analyses</h1>
+                                <p className="page-subtitle">{analyses.length} dossier{analyses.length > 1 ? 's' : ''} • {analysesAvecScore.length} analysé{analysesAvecScore.length > 1 ? 's' : ''}</p>
+                      </div>
+              </div>
         
           {/* KPIs résumé */}
               <div className="kpi-grid" style={{ marginBottom: '1.5rem' }}>
                       <div className="kpi-card">
                                 <div className="kpi-header">
-                                            <span className="kpi-label">Score moyen</span>span>
-                                            <span style={{ color: getScoreColor(avgScore), fontSize: '1rem' }}>◈</span>span>
-                                </div>div>
-                                <div className="kpi-value" style={{ color: getScoreColor(avgScore) }}>{avgScore > 0 ? `${avgScore}/100` : '—'}</div>div>
-                      </div>div>
+                                            <span className="kpi-label">Score moyen</span>
+                                            <span style={{ color: getScoreColor(avgScore), fontSize: '1rem' }}>◈</span>
+                                </div>
+                                <div className="kpi-value" style={{ color: getScoreColor(avgScore) }}>{avgScore > 0 ? `${avgScore}/100` : '—'}</div>
+                      </div>
                       <div className="kpi-card">
                                 <div className="kpi-header">
-                                            <span className="kpi-label">Dossiers solides</span>span>
-                                            <span style={{ color: 'var(--risk-low)', fontSize: '1rem' }}>✓</span>span>
-                                </div>div>
-                                <div className="kpi-value" style={{ color: 'var(--risk-low)' }}>{scoreDistrib.solide}</div>div>
-                      </div>div>
+                                            <span className="kpi-label">Dossiers solides</span>
+                                            <span style={{ color: 'var(--risk-low)', fontSize: '1rem' }}>✓</span>
+                                </div>
+                                <div className="kpi-value" style={{ color: 'var(--risk-low)' }}>{scoreDistrib.solide}</div>
+                      </div>
                       <div className="kpi-card">
                                 <div className="kpi-header">
-                                            <span className="kpi-label">Dossiers fragiles</span>span>
-                                            <span style={{ color: 'var(--risk-high)', fontSize: '1rem' }}>⚠</span>span>
-                                </div>div>
-                                <div className="kpi-value" style={{ color: 'var(--risk-high)' }}>{scoreDistrib.fragile + scoreDistrib.critique}</div>div>
-                      </div>div>
+                                            <span className="kpi-label">Dossiers fragiles</span>
+                                            <span style={{ color: 'var(--risk-high)', fontSize: '1rem' }}>⚠</span>
+                                </div>
+                                <div className="kpi-value" style={{ color: 'var(--risk-high)' }}>{scoreDistrib.fragile + scoreDistrib.critique}</div>
+                      </div>
                       <div className="kpi-card">
                                 <div className="kpi-header">
-                                            <span className="kpi-label">Total dossiers</span>span>
-                                            <span style={{ color: 'var(--brand-blue)', fontSize: '1rem' }}>◧</span>span>
-                                </div>div>
-                                <div className="kpi-value" style={{ color: 'var(--brand-blue)' }}>{analyses.length}</div>div>
-                      </div>div>
-              </div>div>
+                                            <span className="kpi-label">Total dossiers</span>
+                                            <span style={{ color: 'var(--brand-blue)', fontSize: '1rem' }}>◧</span>
+                                </div>
+                                <div className="kpi-value" style={{ color: 'var(--brand-blue)' }}>{analyses.length}</div>
+                      </div>
+              </div>
         
           {/* Filtre */}
               <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', alignItems: 'center' }}>
@@ -187,95 +187,95 @@ export default function AnalysesPage() {
                                   style={{ padding: '0.5rem 1rem', background: 'none', border: '1px solid var(--border-primary)', borderRadius: '0.5rem', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-muted)' }}
                                 >
                                 Effacer
-                    </button>button>
+                    </button>
                       )}
                       <span style={{ marginLeft: 'auto', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                         {filtered.length} résultat{filtered.length > 1 ? 's' : ''}
-                      </span>span>
-              </div>div>
+                      </span>
+              </div>
         
           {loading ? (
-                  <div className="loading-container"><div className="loading-spinner" /><p>Chargement...</p>p></div>div>
+                  <div className="loading-container"><div className="loading-spinner" /><p>Chargement...</p></div>
                 ) : analyses.length === 0 ? (
                   <div className="card">
                             <div className="empty-state">
-                                        <p style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>◈</p>p>
-                                        <p style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Aucun dossier disponible</p>p>
+                                        <p style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>◈</p>
+                                        <p style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Aucun dossier disponible</p>
                                         <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
                                                       Créez des dossiers et lancez des analyses pour les voir ici.
-                                        </p>p>
+                                        </p>
                                         <Link href="/dossiers" className="btn-primary" style={{ marginTop: '1rem', display: 'inline-block' }}>
                                                       Voir les dossiers
-                                        </Link>Link>
-                            </div>div>
-                  </div>div>
+                                        </Link>
+                            </div>
+                  </div>
                 ) : (
                   <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
                             <table className="data-table">
                                         <thead>
                                                       <tr>
-                                                                      <th>Client</th>th>
-                                                                      <th>Score</th>th>
-                                                                      <th>Risque</th>th>
-                                                                      <th>Endettement</th>th>
-                                                                      <th>Revenus</th>th>
-                                                                      <th>Mensualité</th>th>
-                                                                      <th>Reste à vivre</th>th>
-                                                                      <th>Statut</th>th>
-                                                                      <th>Action</th>th>
-                                                      </tr>tr>
-                                        </thead>thead>
+                                                                      <th>Client</th>
+                                                                      <th>Score</th>
+                                                                      <th>Risque</th>
+                                                                      <th>Endettement</th>
+                                                                      <th>Revenus</th>
+                                                                      <th>Mensualité</th>
+                                                                      <th>Reste à vivre</th>
+                                                                      <th>Statut</th>
+                                                                      <th>Action</th>
+                                                      </tr>
+                                        </thead>
                                         <tbody>
                                           {filtered.map(a => (
                                     <tr key={a.id} style={{ cursor: 'pointer' }} onClick={() => window.location.href = `/dossiers/${a.dossier_id}/analyse`}>
                                                       <td>
                                                                           <div>
-                                                                                                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{a.nom_client || '—'}</div>div>
+                                                                                                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{a.nom_client || '—'}</div>
                                                                                                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                                                                                                   {a.reference || a.dossier_id?.slice(0, 8).toUpperCase()}
-                                                                                                  </div>div>
-                                                                          </div>div>
-                                                      </td>td>
+                                                                                                  </div>
+                                                                          </div>
+                                                      </td>
                                                       <td>
                                                         {a.score_global && a.score_global > 0 ? (
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                                                     <div style={{ width: '2.5rem', height: '2.5rem', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${getScoreColor(a.score_global)}20`, border: `2px solid ${getScoreColor(a.score_global)}`, fontSize: '0.7rem', fontWeight: 800, color: getScoreColor(a.score_global) }}>
                                                                                       {a.score_global}
-                                                                                      </div>div>
+                                                                                      </div>
                                                                                     <span style={{ fontSize: '0.75rem', color: getScoreColor(a.score_global), fontWeight: 500 }}>
                                                                                       {getScoreLabel(a.score_global)}
-                                                                                      </span>span>
-                                                            </div>div>
+                                                                                      </span>
+                                                            </div>
                                                           ) : (
-                                                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Non analysé</span>span>
+                                                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Non analysé</span>
                                                                           )}
-                                                      </td>td>
+                                                      </td>
                                                       <td>
                                                         {a.niveau_risque && a.niveau_risque !== 'non_calcule' ? (
-                                                            <span style={{ fontSize: '0.85rem' }}>{RISQUE_LABELS[a.niveau_risque] || a.niveau_risque}</span>span>
-                                                          ) : <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>—</span>span>}
-                                                      </td>td>
+                                                            <span style={{ fontSize: '0.85rem' }}>{RISQUE_LABELS[a.niveau_risque] || a.niveau_risque}</span>
+                                                          ) : <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>—</span>}
+                                                      </td>
                                                       <td>
                                                         {a.taux_endettement != null && a.taux_endettement > 0 ? (
                                                             <span style={{ fontWeight: 600, color: a.taux_endettement > 35 ? 'var(--risk-high)' : 'var(--text-secondary)' }}>
                                                               {a.taux_endettement.toFixed(1)}%
-                                                            </span>span>
-                                                          ) : <span style={{ color: 'var(--text-muted)' }}>—</span>span>}
-                                                      </td>td>
+                                                            </span>
+                                                          ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                                                      </td>
                                                       <td style={{ fontWeight: 500 }}>
                                                         {a.revenus_retenus ? formatCurrency(a.revenus_retenus) + '/mois' : '—'}
-                                                      </td>td>
+                                                      </td>
                                                       <td style={{ fontWeight: 500 }}>
                                                         {a.mensualite ? formatCurrency(a.mensualite) + '/mois' : '—'}
-                                                      </td>td>
+                                                      </td>
                                                       <td style={{ fontWeight: 500 }}>
                                                         {a.reste_vivre ? formatCurrency(a.reste_vivre) + '/mois' : '—'}
-                                                      </td>td>
+                                                      </td>
                                                       <td>
                                                                           <span className={`badge ${STATUT_CLASSES[a.statut || ''] || 'badge-neutral'}`}>
                                                                             {STATUT_LABELS[a.statut || ''] || a.statut || '—'}
-                                                                          </span>span>
-                                                      </td>td>
+                                                                          </span>
+                                                      </td>
                                                       <td>
                                                                           <Link
                                                                                                   href={`/dossiers/${a.dossier_id}/analyse`}
@@ -284,14 +284,14 @@ export default function AnalysesPage() {
                                                                                                   onClick={e => e.stopPropagation()}
                                                                                                 >
                                                                                                 Analyser
-                                                                          </Link>Link>
-                                                      </td>td>
-                                    </tr>tr>
+                                                                          </Link>
+                                                      </td>
+                                    </tr>
                                   ))}
-                                        </tbody>tbody>
-                            </table>table>
-                  </div>div>
+                                        </tbody>
+                            </table>
+                  </div>
               )}
-        </div>div>
+        </div>
       );
 }</div>
