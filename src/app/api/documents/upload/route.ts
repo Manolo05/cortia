@@ -100,13 +100,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Fichier trop volumineux (max 10MB)' }, { status: 400 })
     }
 
-    // Récupérer le cabinet_id
-    const { data: profil } = await supabase
-      .from('profils_utilisateurs')
-      .select('cabinet_id')
-      .eq('id', session.user.id)
-      .single()
-
     // Lire le fichier
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
