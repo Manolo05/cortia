@@ -80,8 +80,8 @@ export default function ControleDocsPage() {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      formData.append('dossierId', dossierId)
-      formData.append('typeDocument', docTypeId)
+      formData.append('dossier_id', dossierId)
+      formData.append('type_document', docTypeId)
 
       const response = await fetch('/api/documents/upload', { method: 'POST', body: formData })
       const data = await response.json()
