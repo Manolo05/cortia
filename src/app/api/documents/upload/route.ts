@@ -161,8 +161,7 @@ export async function POST(req: NextRequest) {
         taille_fichier: file.size,
         mime_type: 'application/pdf',
         statut_verification: 'en_attente',
-        // Stocker les données extraites dans les notes
-        notes: JSON.stringify(donneeesExtraites),
+        contenu_extrait: donneeesExtraites,
       })
       .select()
       .single()
@@ -176,7 +175,6 @@ export async function POST(req: NextRequest) {
       success: true,
       document: docData,
       extraction: donneeesExtraites,
-      texte_brut: texteExtrait.substring(0, 500),
     })
 
   } catch (error: any) {
