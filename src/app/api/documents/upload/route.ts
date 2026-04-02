@@ -1,86 +1,150 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import OpenAI from 'openai'
 
 export const runtime = 'nodejs'
-export const maxDuration = 60
+export const maxDuration = 120
 
-// Extraire le texte d'un PDF via OpenAI GPT-4o
-async function extractTextFromPDF(fileBuffer: Buffer, fileName: string, apiKey: string): Promise<string> {
-  // Convert PDF buffer to base64
-  const base64 = fileBuffer.toString('base64')
-  
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      max_tokens: 4000,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: `Tu es un expert en analyse de documents immobiliers et financiers français. 
-Analyse ce document PDF et extrais TOUTES les informations importantes de façon structurée.
+// Extraire le texte brut d'un PDF avec pdf-parse
+async function extractTextFromPDFBuffer(buffer: Buffer): Promise<string> {
+  try {
+    // Import dynamique pour eviter les problemes de bundling
+    const pdfParse = await import('pdf-parse')
+    const data = await pdfParse.default(buffer)
+    return data.text || ''
+  } catch (err) {
+    console.error('Erreur extraction pdf-parse:', err)
+    return ''
+  }
+}
 
-Document: ${fileName}
-
-Extrais notamment:
-- Identité (nom, prénom, date naissance, adresse, numéro pièce identité si présent)
-- Revenus (salaires, primes, revenus locatifs, autres revenus - montants précis)
-- Employeur et contrat de travail (type, ancienneté, poste)
-- Charges et crédits en cours (montants, organismes)
-- Informations bancaires (numéro compte masqué, banque, soldes moyens)
-- Prix et caractéristiques du bien immobilier si contrat de réservation/compromis
-- Impôts (revenu fiscal de référence, impôt payé)
-- Toute autre information financière ou juridique pertinente
-
-Réponds en JSON structuré avec ces champs:
-{
-  "type_document_detecte": "...",
-  "periode": "...",
-  "identite": { "nom": "", "prenom": "", "date_naissance": "", "adresse": "" },
-  "revenus": { "salaire_net_mensuel": 0, "salaire_brut_mensuel": 0, "primes": 0, "autres": 0, "total_annuel": 0 },
-  "employeur": { "nom": "", "type_contrat": "", "poste": "", "anciennete": "" },
-  "charges": { "credits": 0, "loyer": 0, "autres": 0 },
-  "bancaire": { "banque": "", "solde_moyen": 0, "incidents": [] },
-  "fiscal": { "revenu_fiscal": 0, "impot_paye": 0, "nombre_parts": 0 },
-  "bien_immobilier": { "adresse": "", "prix": 0, "type": "", "surface": 0 },
-  "anomalies_detectees": [],
-  "resume_extraction": "..."
-}`
-            },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:application/pdf;base64,${base64}`,
-                detail: 'high'
-              }
-            }
-          ]
-        }
-      ]
-    })
-  })
-
-  if (!response.ok) {
-    // Fallback: essayer d'extraire le texte brut
-    throw new Error(`OpenAI API error: ${response.status}`)
+// Analyser le texte extrait avec OpenAI GPT-4o
+async function analyserAvecIA(texte: string, fileName: string, typeDocument: string, openai: OpenAI): Promise<any> {
+  if (!texte || texte.trim().length < 10) {
+    return {
+      erreur: 'Texte PDF non extractible ou document vide',
+      resume_extraction: 'Impossible de lire le contenu du PDF'
+    }
   }
 
-  const data = await response.json()
-  return data.choices?.[0]?.message?.content || ''
+  // Tronquer si trop long (max ~15000 chars pour rester dans les limites token)
+  const texteTronque = texte.length > 15000 ? texte.substring(0, 15000) + '\n[... document tronque ...]' : texte
+
+  const prompt = `Tu es un expert en analyse de documents immobiliers et financiers francais.
+Analyse ce document et extrais TOUTES les informations importantes.
+
+Type de document: ${typeDocument}
+Nom du fichier: ${fileName}
+
+CONTENU DU DOCUMENT:
+${texteTronque}
+
+Reponds UNIQUEMENT avec un objet JSON valide (sans markdown, sans backticks) avec exactement cette structure:
+{
+  "type_document_detecte": "type exact detecte dans le document",
+  "periode": "periode couverte (ex: janvier 2024, annee 2023, etc.)",
+  "identite": {
+    "nom": "nom de famille",
+    "prenom": "prenom",
+    "date_naissance": "JJ/MM/AAAA",
+    "adresse": "adresse complete"
+  },
+  "revenus": {
+    "salaire_net_mensuel": 0,
+    "salaire_brut_mensuel": 0,
+    "salaire_net_annuel": 0,
+    "primes": 0,
+    "heures_supplementaires": 0,
+    "autres_revenus": 0,
+    "total_mensuel_net": 0
+  },
+  "employeur": {
+    "nom": "nom de la societe",
+    "siret": "",
+    "type_contrat": "CDI/CDD/interim/etc",
+    "poste": "intitule du poste",
+    "anciennete": "depuis quand",
+    "convention_collective": ""
+  },
+  "charges": {
+    "credit_immobilier": 0,
+    "credit_consommation": 0,
+    "loyer": 0,
+    "pension": 0,
+    "autres": 0,
+    "total_charges": 0
+  },
+  "bancaire": {
+    "banque": "nom de la banque",
+    "iban_partiel": "FR76****",
+    "solde_moyen": 0,
+    "solde_fin_periode": 0,
+    "total_credits": 0,
+    "total_debits": 0,
+    "incidents_paiement": [],
+    "epargne": 0
+  },
+  "fiscal": {
+    "revenu_fiscal_reference": 0,
+    "impot_sur_revenu": 0,
+    "nombre_parts": 0,
+    "annee_imposition": "",
+    "situation_familiale": ""
+  },
+  "bien_immobilier": {
+    "adresse": "",
+    "prix_vente": 0,
+    "prix_reservation": 0,
+    "type_bien": "",
+    "surface": 0,
+    "notaire": ""
+  },
+  "document_identite": {
+    "type": "CNI/passeport/titre_sejour",
+    "numero": "",
+    "date_expiration": "",
+    "nationalite": ""
+  },
+  "anomalies_detectees": [],
+  "coherence_interne": "evaluation de la coherence interne du document",
+  "resume_extraction": "resume en 2-3 phrases des informations cles"
+}`
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    max_tokens: 4096,
+    temperature: 0,
+    messages: [
+      {
+        role: 'system',
+        content: 'Tu es un expert en analyse de documents financiers et immobiliers. Tu reponds toujours avec un JSON valide uniquement, sans aucun texte supplementaire.'
+      },
+      {
+        role: 'user',
+        content: prompt
+      }
+    ]
+  })
+
+  const content = response.choices?.[0]?.message?.content || '{}'
+  
+  try {
+    // Nettoyer les backticks markdown si presents
+    const cleaned = content.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
+    return JSON.parse(cleaned)
+  } catch {
+    return {
+      texte_brut: content,
+      resume_extraction: content.substring(0, 500)
+    }
+  }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+    if (!session) return NextResponse.json({ error: 'Non authentifie' }, { status: 401 })
 
     const formData = await req.formData()
     const file = formData.get('file') as File
@@ -89,11 +153,11 @@ export async function POST(req: NextRequest) {
     const emprunteurId = formData.get('emprunteur_id') as string | null
 
     if (!file || !dossierId || !typeDocument) {
-      return NextResponse.json({ error: 'Paramètres manquants: file, dossier_id, type_document requis' }, { status: 400 })
+      return NextResponse.json({ error: 'Parametres manquants' }, { status: 400 })
     }
 
     if (!file.name.toLowerCase().endsWith('.pdf') && !file.type.includes('pdf')) {
-      return NextResponse.json({ error: 'Seuls les fichiers PDF sont acceptés' }, { status: 400 })
+      return NextResponse.json({ error: 'Seuls les fichiers PDF sont acceptes' }, { status: 400 })
     }
 
     if (file.size > 10 * 1024 * 1024) {
@@ -106,7 +170,6 @@ export async function POST(req: NextRequest) {
 
     // Upload dans Supabase Storage
     const fileName = `${dossierId}/${typeDocument}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-    
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('documents')
       .upload(fileName, buffer, {
@@ -116,7 +179,6 @@ export async function POST(req: NextRequest) {
 
     let urlStockage = ''
     if (uploadError) {
-      // Si le bucket n'existe pas ou erreur, on continue sans storage
       urlStockage = `local://${fileName}`
     } else {
       const { data: { publicUrl } } = supabase.storage
@@ -125,31 +187,30 @@ export async function POST(req: NextRequest) {
       urlStockage = publicUrl
     }
 
-    // Extraction du texte via OpenAI
-    let texteExtrait = ''
-    let donneeesExtraites: any = {}
-    const openaiKey = process.env.OPENAI_API_KEY
-
+    // Extraction et analyse avec OpenAI
+    let donneeesExtraites: any = { resume_extraction: 'OpenAI non configure' }
+    
+    const openaiKey = process.env.OPENAI_API_KEY || process.env.CLE_API_OPENAI
     if (openaiKey) {
       try {
-        const extraction = await extractTextFromPDF(buffer, file.name, openaiKey)
-        texteExtrait = extraction
-        try {
-          // Tenter de parser le JSON
-          const jsonMatch = extraction.match(/{[sS]*}/)
-          if (jsonMatch) {
-            donneeesExtraites = JSON.parse(jsonMatch[0])
-          }
-        } catch {
-          donneeesExtraites = { resume_extraction: extraction }
+        // Etape 1: Extraire le texte du PDF
+        const textePDF = await extractTextFromPDFBuffer(buffer)
+        
+        // Etape 2: Analyser avec GPT-4o
+        const openai = new OpenAI({ apiKey: openaiKey })
+        donneeesExtraites = await analyserAvecIA(textePDF, file.name, typeDocument, openai)
+        
+        console.log('Extraction reussie pour:', file.name, '- Type detecte:', donneeesExtraites.type_document_detecte)
+      } catch (err: any) {
+        console.error('Erreur analyse OpenAI:', err)
+        donneeesExtraites = {
+          erreur: err.message,
+          resume_extraction: 'Erreur lors de l analyse IA'
         }
-      } catch (err) {
-        console.error('Erreur extraction OpenAI:', err)
-        donneeesExtraites = { resume_extraction: 'Extraction non disponible' }
       }
     }
 
-    // Enregistrer en base de données
+    // Enregistrer en base de donnees
     const { data: docData, error: docError } = await supabase
       .from('documents')
       .insert({
