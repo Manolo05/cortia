@@ -38,10 +38,10 @@ function getScoreLabel(score?: number): string {
   return 'Insuffisant'
 }
 
-function getBanqueReadyStatus(score?: number): { label: string; color: string; bg: string } {
-  if (!score || score < 45) return { label: 'Non', color: '#dc2626', bg: '#fef2f2' }
-  if (score < 65) return { label: 'Presque', color: '#ca8a04', bg: '#fefce8' }
-  return { label: 'Oui', color: '#16a34a', bg: '#f0fdf4' }
+function getBanqueReadyStatus(score?: number): { label: string; color: string } {
+  if (!score || score < 45) return { label: 'Non', color: '#dc2626' }
+  if (score < 65) return { label: 'Presque', color: '#ca8a04' }
+  return { label: 'Oui', color: '#16a34a' }
 }
 
 export default function SyntheseBanquePage() {
@@ -94,74 +94,57 @@ export default function SyntheseBanquePage() {
   if ((dossier.taux_endettement || 0) > 0 && (dossier.taux_endettement || 0) <= 33) atouts.push('Taux d endettement maitrise : ' + dossier.taux_endettement + '% (norme bancaire < 35%)')
   if ((dossier.taux_endettement || 0) > 33) pointsExpliquer.push('Taux d endettement a ' + dossier.taux_endettement + '% : justifier la capacite de remboursement')
   if ((dossier.reste_a_vivre || 0) > 1500) atouts.push('Reste a vivre confortable : ' + formatCurrency(dossier.reste_a_vivre) + ' par mois')
-  if ((dossier.reste_a_vivre || 0) > 0 && (dossier.reste_a_vivre || 0) < 800) pointsExpliquer.push('Reste a vivre limite : ' + formatCurrency(dossier.reste_a_vivre) + ' - prevoir justificatifs de charges')
+  if ((dossier.reste_a_vivre || 0) > 0 && (dossier.reste_a_vivre || 0) < 800) pointsExpliquer.push('Reste a vivre limite : ' + formatCurrency(dossier.reste_a_vivre) + ' - prevoir justificatifs')
   if ((dossier.apport || 0) > 0) atouts.push('Apport personnel : ' + formatCurrency(dossier.apport))
   if (docsValides === docsTotal && docsTotal > 0) atouts.push('Dossier documentaire complet (' + docsTotal + ' pieces validees)')
   if (docsValides < docsTotal && docsTotal > 0) pointsExpliquer.push((docsTotal - docsValides) + ' document(s) manquant(s) a completer')
-  if ((dossier.saut_de_charge || 0) > 500) pointsExpliquer.push('Saut de charge de ' + formatCurrency(dossier.saut_de_charge) + ' - a anticiper et argumenter')
+  if ((dossier.saut_de_charge || 0) > 500) pointsExpliquer.push('Saut de charge de ' + formatCurrency(dossier.saut_de_charge) + ' - a anticiper')
   if (score >= 70) atouts.push('Score de financiabilite solide : ' + score + '/100')
 
-  const noteBancaire = 'PRESENTATION DOSSIER - ' + (dossier.nom_client || 'Emprunteur') + '
-' +
-    '='.repeat(60) + '
+  const newlineChar = String.fromCharCode(10)
+  const sep1 = '='.repeat(60)
+  const sep2 = '-'.repeat(40)
 
-' +
-    'EMPRUNTEUR : ' + (dossier.nom_client || 'Non renseigne') + '
-' +
-    (dossier.reference ? 'REFERENCE : ' + dossier.reference + '
-' : '') +
-    '
-' +
-    'PROJET IMMOBILIER
-' +
-    '-'.repeat(40) + '
-' +
-    'Type de projet : ' + (dossier.type_projet || 'Acquisition immobiliere') + '
-' +
-    'Montant du projet : ' + formatCurrency(dossier.montant_projet) + '
-' +
-    (dossier.apport ? 'Apport personnel : ' + formatCurrency(dossier.apport) + '
-' : '') +
-    '
-' +
-    'SITUATION FINANCIERE
-' +
-    '-'.repeat(40) + '
-' +
-    (dossier.taux_endettement ? 'Taux d endettement : ' + dossier.taux_endettement + '%
-' : '') +
-    (dossier.reste_a_vivre ? 'Reste a vivre mensuel : ' + formatCurrency(dossier.reste_a_vivre) + '
-' : '') +
-    '
-' +
-    'EVALUATION
-' +
-    '-'.repeat(40) + '
-' +
-    'Score de financiabilite : ' + (score > 0 ? score + '/100' : 'Non evalue') + '
-' +
-    'Appreciation : ' + getScoreLabel(score) + '
-' +
-    'Statut banque-ready : ' + banqueReady.label + '
-' +
-    '
-' +
-    'ATOUTS DU DOSSIER
-' +
-    '-'.repeat(40) + '
-' +
-    (atouts.length > 0 ? atouts.map(a => '+ ' + a).join('
-') : 'A completer apres analyse') + '
-' +
-    '
-' +
-    (pointsExpliquer.length > 0 ? 'POINTS A EXPLIQUER
-' + '-'.repeat(40) + '
-' + pointsExpliquer.map(p => '! ' + p).join('
-') + '
+  const noteLines: string[] = [
+    'PRESENTATION DOSSIER - ' + (dossier.nom_client || 'Emprunteur'),
+    sep1,
+    '',
+    'EMPRUNTEUR : ' + (dossier.nom_client || 'Non renseigne'),
+    dossier.reference ? 'REFERENCE : ' + dossier.reference : '',
+    '',
+    'PROJET IMMOBILIER',
+    sep2,
+    'Type de projet : ' + (dossier.type_projet || 'Acquisition immobiliere'),
+    'Montant du projet : ' + formatCurrency(dossier.montant_projet),
+    dossier.apport ? 'Apport personnel : ' + formatCurrency(dossier.apport) : '',
+    '',
+    'SITUATION FINANCIERE',
+    sep2,
+    dossier.taux_endettement ? 'Taux d endettement : ' + dossier.taux_endettement + '%' : '',
+    dossier.reste_a_vivre ? 'Reste a vivre mensuel : ' + formatCurrency(dossier.reste_a_vivre) : '',
+    '',
+    'EVALUATION',
+    sep2,
+    'Score de financiabilite : ' + (score > 0 ? score + '/100' : 'Non evalue'),
+    'Appreciation : ' + getScoreLabel(score),
+    'Statut banque-ready : ' + banqueReady.label,
+    '',
+    'ATOUTS DU DOSSIER',
+    sep2,
+    atouts.length > 0 ? atouts.map(a => '+ ' + a).join(newlineChar) : 'A completer apres analyse',
+  ]
 
-' : '') +
-    'Document genere par CortIA - ' + new Date().toLocaleDateString('fr-FR')
+  if (pointsExpliquer.length > 0) {
+    noteLines.push('')
+    noteLines.push('POINTS A EXPLIQUER')
+    noteLines.push(sep2)
+    noteLines.push(pointsExpliquer.map(p => '! ' + p).join(newlineChar))
+  }
+
+  noteLines.push('')
+  noteLines.push('Document genere par CortIA - ' + new Date().toLocaleDateString('fr-FR'))
+
+  const noteBancaire = noteLines.filter(l => l !== undefined).join(newlineChar)
 
   const handleCopy = () => {
     navigator.clipboard.writeText(noteBancaire)
@@ -175,7 +158,7 @@ export default function SyntheseBanquePage() {
         <div className="card" style={{ background: 'linear-gradient(135deg, #1e3a5f, #1e40af)', color: 'white', padding: '28px 32px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             <div style={{ textAlign: 'center', minWidth: '100px' }}>
-              <div style={{ fontSize: '48px', fontWeight: 900, color: banqueReady.color === '#16a34a' ? '#86efac' : banqueReady.color === '#ca8a04' ? '#fde68a' : '#fca5a5', lineHeight: 1 }}>
+              <div style={{ fontSize: '48px', fontWeight: 900, color: banqueReady.label === 'Oui' ? '#86efac' : banqueReady.label === 'Presque' ? '#fde68a' : '#fca5a5', lineHeight: '1' }}>
                 {score > 0 ? score : '-'}
               </div>
               <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginTop: '4px' }}>/100</div>
@@ -187,9 +170,9 @@ export default function SyntheseBanquePage() {
               <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '12px' }}>
                 {dossier.reference ? 'Ref. ' + dossier.reference + ' - ' : ''}{dossier.type_projet || 'Acquisition immobiliere'}
               </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>Banque-ready :</span>
-                <span style={{ fontSize: '15px', fontWeight: 800, color: banqueReady.color === '#16a34a' ? '#86efac' : banqueReady.color === '#ca8a04' ? '#fde68a' : '#fca5a5' }}>
+                <span style={{ fontSize: '15px', fontWeight: 800, color: banqueReady.label === 'Oui' ? '#86efac' : banqueReady.label === 'Presque' ? '#fde68a' : '#fca5a5' }}>
                   {banqueReady.label}
                 </span>
                 <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginLeft: '8px' }}>{getScoreLabel(score)}</span>
@@ -201,7 +184,6 @@ export default function SyntheseBanquePage() {
             </div>
           </div>
         </div>
-
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <button onClick={handleCopy} className="btn-primary" style={{ whiteSpace: 'nowrap' }}>
             {copied ? 'Copie !' : 'Copier la note'}
@@ -226,20 +208,19 @@ export default function SyntheseBanquePage() {
             ))}
           </div>
         </div>
-
         <div className="card">
           <h2 className="card-title" style={{ marginBottom: '16px' }}>Situation financiere</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {[
-              { label: 'Montant projet', value: formatCurrency(dossier.montant_projet) },
-              { label: 'Apport', value: formatCurrency(dossier.apport) },
+              { label: 'Montant projet', value: formatCurrency(dossier.montant_projet), alert: false },
+              { label: 'Apport', value: formatCurrency(dossier.apport), alert: false },
               { label: 'Taux endettement', value: dossier.taux_endettement ? dossier.taux_endettement + '%' : '-', alert: (dossier.taux_endettement || 0) > 33 },
               { label: 'Reste a vivre', value: formatCurrency(dossier.reste_a_vivre), alert: (dossier.reste_a_vivre || 0) > 0 && (dossier.reste_a_vivre || 0) < 800 },
               { label: 'Saut de charge', value: formatCurrency(dossier.saut_de_charge), alert: (dossier.saut_de_charge || 0) > 500 },
             ].map((item, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border-light)' }}>
                 <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{item.label}</span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: (item as any).alert ? '#ca8a04' : 'var(--text-primary)' }}>{item.value}</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: item.alert ? '#ca8a04' : 'var(--text-primary)' }}>{item.value}</span>
               </div>
             ))}
           </div>
@@ -261,7 +242,6 @@ export default function SyntheseBanquePage() {
             </ul>
           )}
         </div>
-
         <div className="card">
           <h2 className="card-title" style={{ marginBottom: '12px', color: '#ca8a04' }}>Points a expliquer</h2>
           {pointsExpliquer.length === 0 ? (
