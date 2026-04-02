@@ -179,8 +179,8 @@ export default function AnalysesPage() {
                                   className="form-select"
                                   style={{ width: 'auto', minWidth: '160px' }}
                                 >
-                        {RISQUES.map(r => <option key={r} value={r}>{RISQUE_LABELS[r]}</option>option>)}
-                      </select>select>
+                        {RISQUES.map(r => <option key={r} value={r}>{RISQUE_LABELS[r]}</option>)}
+                      </select>
                 {filterRisque && (
                     <button
                                   onClick={() => setFilterRisque('')}
