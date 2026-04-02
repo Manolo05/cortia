@@ -294,4 +294,4 @@ export default function AnalysesPage() {
               )}
         </div>
       );
-}</div>
+}
