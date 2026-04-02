@@ -160,7 +160,7 @@ export async function POST(
 
     const { data: documents } = await supabase
       .from('documents')
-      .select('id, type_document, nom_fichier, notes, statut_verification')
+      .select('id, type_document, nom_fichier, contenu_extrait, statut_verification')
       .eq('dossier_id', dossierId)
 
     const [empRes] = await Promise.all([
