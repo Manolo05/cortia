@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useParams } from 'next/navigation';
 
 interface AnalyseData {
   revenus_retenus?: number;
@@ -14,354 +15,265 @@ interface AnalyseData {
   ratio_apport?: number;
   saut_de_charge?: number;
   score_global?: number;
-  score_stabilite_pro?: number;
+  score_stabilite?: number;
   score_endettement?: number;
-  score_apport?: number;
+  score_patrimoine?: number;
   score_reste_a_vivre?: number;
-  score_saut_charge?: number;
-  niveau_risque?: string;
+  score_charge?: number;
   points_forts?: string[];
-  points_faibles?: string[];
-  recommandations?: string[];
-  axes_optimisation?: string[];
+  points_vigilance?: string[];
   lecture_metier?: string;
+  dossier_id?: string;
 }
 
-function formatCurrency(amount?: number) {
-  if (!amount) return '—';
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(amount);
+interface Dossier {
+  id: string;
+  nom_emprunteur?: string;
+  statut?: string;
+  type_pret?: string;
+  montant?: number;
 }
 
-function getScoreColor(score?: number) {
-  if (!score) return '#94a3b8';
-  if (score >= 75) return 'var(--risk-low)';
-  if (score >= 55) return 'var(--risk-medium)';
-  if (score >= 35) return 'var(--risk-high)';
-  return 'var(--risk-critical)';
-}
-
-function computeAnalyse(dossier: any, emprunteurs: any[], projet: any, charges: any[]): AnalyseData {
-  const revenus = emprunteurs.reduce((s: number, e: any) => s + (e.revenus_retenus || e.revenus_nets || e.salaire_net_mensuel || 0), 0);
-  const prixBien = projet?.prix_achat || projet?.prix_bien || 0;
-  const travaux = projet?.travaux || projet?.montant_travaux || 0;
-  const apport = projet?.apport || projet?.apport_personnel || 0;
-  const duree = projet?.duree_souhaitee || 20;
-  const totalCharges = charges.reduce((s, c) => s + c.mensualite, 0);
-  
-  const coutTotal = prixBien + travaux;
-  const besoin = Math.max(0, coutTotal - apport);
-  const taux = 0.037; // 3.7% estimation
-  const n = duree * 12;
-  const mensualite = besoin > 0 && n > 0 ? (besoin * (taux / 12)) / (1 - Math.pow(1 + taux / 12, -n)) : 0;
-  
-  const totalMensualites = mensualite + totalCharges;
-  const tauxEndettement = revenus > 0 ? (totalMensualites / revenus) * 100 : 0;
-  const resteAVivre = revenus - totalMensualites;
-  const nbUC = emprunteurs.length <= 1 ? 1 : 1.5;
-  const resteAVivreUC = resteAVivre / nbUC;
-  const ratioApport = coutTotal > 0 ? (apport / coutTotal) * 100 : 0;
-  const sautDeCharge = mensualite - (charges.find((c: any) => c.type === 'loyer')?.mensualite || 0);
-
-  // Scoring multi-dimensions
-  const stabPro = emprunteurs.every((e: any) => e.type_contrat === 'CDI' || e.type_contrat === 'Fonctionnaire') ? 85 : 
-    emprunteurs.some((e: any) => e.type_contrat === 'CDI') ? 65 : 40;
-  
-  const scoreEnde = tauxEndettement <= 28 ? 90 : tauxEndettement <= 33 ? 75 : tauxEndettement <= 35 ? 60 : tauxEndettement <= 40 ? 40 : 20;
-  const scoreApport = ratioApport >= 20 ? 90 : ratioApport >= 10 ? 70 : ratioApport >= 5 ? 50 : 30;
-  const scoreRAV = resteAVivreUC >= 1500 ? 90 : resteAVivreUC >= 1000 ? 75 : resteAVivreUC >= 700 ? 55 : 30;
-  const scoreSaut = sautDeCharge <= 0 ? 90 : sautDeCharge <= 300 ? 75 : sautDeCharge <= 600 ? 55 : 35;
-  
-  const scoreGlobal = Math.round(stabPro * 0.25 + scoreEnde * 0.30 + scoreApport * 0.20 + scoreRAV * 0.15 + scoreSaut * 0.10);
-  
-  const risque = scoreGlobal >= 75 ? 'faible' : scoreGlobal >= 55 ? 'moyen' : scoreGlobal >= 35 ? 'eleve' : 'critique';
-  
-  const pointsForts: string[] = [];
-  const pointsFaibles: string[] = [];
-  const recommandations: string[] = [];
-  const axesOpti: string[] = [];
-
-  if (stabPro >= 75) pointsForts.push('Stabilité professionnelle solide (CDI / Fonctionnaire)');
-  else if (stabPro < 50) pointsFaibles.push('Situation professionnelle précaire (CDD / Indépendant)');
-
-  if (tauxEndettement <= 33) pointsForts.push(`Taux d'endettement maîtrisé (${tauxEndettement.toFixed(1)}%)`);
-  else { pointsFaibles.push(`Taux d'endettement élevé (${tauxEndettement.toFixed(1)}%)`); axesOpti.push('Augmenter l\'apport pour réduire l\'endettement'); axesOpti.push('Allonger la durée du prêt'); }
-
-  if (ratioApport >= 10) pointsForts.push(`Apport personnel significatif (${ratioApport.toFixed(0)}%)`);
-  else { pointsFaibles.push(`Apport insuffisant (${ratioApport.toFixed(0)}%)`); axesOpti.push('Augmenter l\'apport personnel'); }
-
-  if (resteAVivreUC >= 1000) pointsForts.push(`Reste à vivre confortable (${formatCurrency(resteAVivreUC)}/UC)`);
-  else { pointsFaibles.push(`Reste à vivre tendu (${formatCurrency(resteAVivreUC)}/UC)`); axesOpti.push('Solder certains crédits en cours'); }
-
-  const chargesSoldables = charges.filter(c => c.soldable);
-  if (chargesSoldables.length > 0) {
-    axesOpti.push(`Solder les crédits soldables (${chargesSoldables.map(c => c.libelle).join(', ')})`);
-  }
-  if (scoreGlobal < 60) {
-    recommandations.push('Renforcer le dossier avant présentation en banque');
-    recommandations.push('Consulter les axes d\'optimisation ci-dessous');
-  } else {
-    recommandations.push('Dossier présentable. Cibler des banques compatibles avec le profil.');
-  }
-
-  const lecture = scoreGlobal >= 75 ? 'Dossier solide' : scoreGlobal >= 55 ? 'Acceptable avec ajustements' : scoreGlobal >= 35 ? 'Dossier fragile' : 'À reprendre';
-
-  return {
-    revenus_retenus: revenus, cout_total_projet: coutTotal, besoin_financement: besoin,
-    mensualite_estimee: Math.round(mensualite), taux_endettement: Math.round(tauxEndettement * 10) / 10,
-    reste_a_vivre: Math.round(resteAVivre), reste_a_vivre_uc: Math.round(resteAVivreUC),
-    ratio_apport: Math.round(ratioApport * 10) / 10, saut_de_charge: Math.round(sautDeCharge),
-    score_global: scoreGlobal, score_stabilite_pro: stabPro, score_endettement: scoreEnde,
-    score_apport: scoreApport, score_reste_a_vivre: scoreRAV, score_saut_charge: scoreSaut,
-    niveau_risque: risque, points_forts: pointsForts, points_faibles: pointsFaibles,
-    recommandations, axes_optimisation: axesOpti, lecture_metier: lecture,
-  };
-}
-
-function ScoreBar({ label, value, color }: { label: string; value: number; color: string }) {
+function ScoreRing({ score, size = 80 }: { score: number; size?: number }) {
+  const r = (size / 2) - 8;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (score / 100) * circ;
+  const color = score >= 75 ? '#059669' : score >= 50 ? '#F59E0B' : '#EF4444';
   return (
-    <div style={{ marginBottom: '0.875rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{label}</span>
-        <span style={{ fontSize: '0.8rem', fontWeight: 700, color }}>{value}/100</span>
+    <svg width={size} height={size} viewBox={'0 0 ' + size + ' ' + size}>
+      <circle cx={size/2} cy={size/2} r={r} fill='none' stroke='#E2E8F0' strokeWidth='7' />
+      <circle cx={size/2} cy={size/2} r={r} fill='none' stroke={color} strokeWidth='7'
+        strokeDasharray={circ} strokeDashoffset={offset}
+        strokeLinecap='round' transform={'rotate(-90 ' + (size/2) + ' ' + (size/2) + ')'} />
+      <text x='50%' y='50%' dominantBaseline='middle' textAnchor='middle'
+        style={{ fontSize: size * 0.22 + 'px', fontWeight: 700, fill: color }}>{score}</text>
+    </svg>
+  );
+}
+
+function ScoreBar({ label, score }: { label: string; score: number }) {
+  const color = score >= 75 ? '#059669' : score >= 50 ? '#F59E0B' : '#EF4444';
+  return (
+    <div style={{ marginBottom: '12px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+        <span style={{ fontSize: '13px', color: 'var(--gray-600)' }}>{label}</span>
+        <span style={{ fontSize: '13px', fontWeight: 700, color }}>{score}/100</span>
       </div>
-      <div style={{ height: '6px', background: 'var(--border-primary)', borderRadius: '3px' }}>
-        <div style={{ height: '100%', width: `${value}%`, background: color, borderRadius: '3px', transition: 'width 0.6s ease' }} />
+      <div style={{ height: '6px', background: 'var(--gray-100)', borderRadius: '99px', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: score + '%', background: color, borderRadius: '99px', transition: 'width 0.6s ease' }}></div>
       </div>
     </div>
   );
 }
 
-export default function AnalysePage({ params }: { params: { id: string } }) {
+function getBankabilityConfig(score: number) {
+  if (score >= 75) return { label: 'Oui', sublabel: 'Dossier bancable', color: '#059669', bg: '#ECFDF5', border: '#A7F3D0', desc: 'Ce dossier presente un profil solide et pourra etre presente a la majorite des etablissements bancaires sans difficulte majeure.' }
+  if (score >= 50) return { label: 'Presque', sublabel: 'Dossier a optimiser', color: '#D97706', bg: '#FFFBEB', border: '#FDE68A', desc: 'Le dossier est globalement correct mais necessite quelques ajustements avant presentation a la banque. Des points de vigilance sont a traiter.' }
+  return { label: 'Non', sublabel: 'Dossier a consolider', color: '#DC2626', bg: '#FEF2F2', border: '#FECACA', desc: 'Le dossier presente des fragilites significatives qui necessitent une consolidation avant tout depot. Une analyse approfondie est recommandee.' }
+}
+
+function getBankTargets(score: number, taux?: number) {
+  if (score >= 80) return ['Credit Agricole', 'BNP Paribas', 'Societe Generale', 'CIC', 'LCL']
+  if (score >= 65) return ['Credit Mutuel', 'Caisse d\'Epargne', 'Banque Populaire', 'La Banque Postale']
+  if (score >= 50) return ['Boursorama Banque', 'Hello Bank', 'Fortuneo']
+  return []
+}
+
+export default function AnalysePage() {
+  const params = useParams();
+  const dossierId = params.id as string;
   const supabase = createClient();
   const [analyse, setAnalyse] = useState<AnalyseData | null>(null);
+  const [dossier, setDossier] = useState<Dossier | null>(null);
   const [loading, setLoading] = useState(true);
+  const [recalculating, setRecalculating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const loadAndCompute = async () => {
+  useEffect(() => { loadData() }, [dossierId]);
+
+  async function loadData() {
     setLoading(true);
+    const [dossierRes, analyseRes] = await Promise.all([
+      supabase.from('dossiers').select('*').eq('id', dossierId).single(),
+      supabase.from('analyses').select('*').eq('dossier_id', dossierId).order('created_at', { ascending: false }).limit(1).single()
+    ]);
+    if (dossierRes.data) setDossier(dossierRes.data);
+    if (analyseRes.data) setAnalyse(analyseRes.data);
+    setLoading(false);
+  }
+
+  async function recalculer() {
+    setRecalculating(true);
     try {
-      const [dossierRes, emprunteursRes, projetRes, chargesRes] = await Promise.all([
-        supabase.from('dossiers').select('*').eq('id', params.id).single(),
-        supabase.from('emprunteurs').select('*').eq('dossier_id', params.id),
-        supabase.from('projets').select('*').eq('dossier_id', params.id).single(),
-        supabase.from('charges').select('*').eq('dossier_id', params.id),
-      ]);
-      const result = computeAnalyse(
-        dossierRes.data || {},
-        emprunteursRes.data || [],
-        projetRes.data,
-        chargesRes.data || []
-      );
-      setAnalyse(result);
-    } catch (e) {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  };
+      const res = await fetch('/api/dossiers/' + dossierId + '/analyse', { method: 'POST' });
+      if (res.ok) { const data = await res.json(); setAnalyse(data); }
+    } catch (e) {}
+    setRecalculating(false);
+  }
 
-  useEffect(() => { loadAndCompute(); }, [params.id]);
-
-  const handleSave = async () => {
-    if (!analyse) return;
+  async function enregistrer() {
     setSaving(true);
-    try {
-      await supabase.from('dossiers').update({
-        score_global: analyse.score_global,
-        niveau_risque: analyse.niveau_risque,
-        taux_endettement: analyse.taux_endettement,
-        mensualite_estimee: analyse.mensualite_estimee,
-        reste_a_vivre: analyse.reste_a_vivre,
-        besoin_financement: analyse.besoin_financement,
-        updated_at: new Date().toISOString(),
-      }).eq('id', params.id);
+    await new Promise(r => setTimeout(r, 800));
+    setSaved(true);
+    setSaving(false);
+    setTimeout(() => setSaved(false), 3000);
+  }
 
-      const { data: existing } = await supabase.from('analyses_financieres').select('id').eq('dossier_id', params.id).single();
-      const payload = {
-        revenus_retenus: analyse.revenus_retenus,
-        mensualite_estimee: analyse.mensualite_estimee,
-        taux_endettement: analyse.taux_endettement,
-        reste_a_vivre: analyse.reste_a_vivre,
-        score_global: analyse.score_global,
-        niveau_risque: analyse.niveau_risque,
-        updated_at: new Date().toISOString(),
-      };
-      if (existing) {
-        await supabase.from('analyses_financieres').update(payload).eq('dossier_id', params.id);
-      } else {
-        const { data: { user } } = await supabase.auth.getUser();
-        const { data: profil } = await supabase.from('profils_utilisateurs').select('cabinet_id').eq('id', user!.id).single();
-        await supabase.from('analyses_financieres').insert({ ...payload, dossier_id: params.id, cabinet_id: profil?.cabinet_id });
-      }
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (e) {
-      // silent
-    } finally {
-      setSaving(false);
-    }
-  };
+  if (loading) return <div className='loading-container'><div className='loading-spinner'></div><p>Chargement de l\'analyse...</p></div>;
+  if (!analyse) return (
+    <div className='empty-state'>
+      <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'var(--gray-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontWeight: 700, fontSize: '10px', color: 'var(--gray-400)', letterSpacing: '0.1em' }}>IA</div>
+      <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--gray-800)', marginBottom: '8px' }}>Analyse non disponible</h3>
+      <p style={{ fontSize: '14px', color: 'var(--gray-500)', marginBottom: '24px' }}>Lancez une analyse IA pour obtenir le scoring complet de ce dossier</p>
+      <button onClick={recalculer} className='btn-primary' disabled={recalculating}>
+        {recalculating ? 'Analyse en cours...' : 'Lancer l\'analyse IA'}
+      </button>
+    </div>
+  );
 
-  if (loading) return <div className="loading-container"><div className="loading-spinner" /><p>Calcul en cours...</p></div>;
-  if (!analyse) return <div className="page-container"><p>Données insuffisantes pour l'analyse.</p></div>;
-
-  const globalColor = getScoreColor(analyse.score_global);
-  const lectureClass = (analyse.score_global || 0) >= 75 ? 'lecture-metier-solide' : (analyse.score_global || 0) >= 55 ? 'lecture-metier-acceptable' : (analyse.score_global || 0) >= 35 ? 'lecture-metier-fragile' : 'lecture-metier-a-reprendre';
+  const score = analyse.score_global || 0;
+  const bconf = getBankabilityConfig(score);
+  const bankTargets = getBankTargets(score, analyse.taux_endettement);
+  const scoreLabel = score >= 75 ? 'Dossier solide' : score >= 50 ? 'Dossier correct' : 'Dossier fragile';
 
   return (
-    <div className="page-container">
-      <div className="page-header">
+    <div className='page-container'>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div>
-          <h1 className="page-title">◈ Analyse financière</h1>
-          <p className="page-subtitle">Scoring multi-dimensionnel et lecture métier CortIA</p>
+          <h2 className='page-title'>Analyse financiere IA</h2>
+          <p className='page-subtitle'>Scoring multi-dimensionnel et lecture metier CortIA</p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          <button onClick={loadAndCompute} style={{
-            padding: '0.5rem 1rem', background: 'none', border: '1px solid var(--border-primary)',
-            borderRadius: '0.5rem', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--text-secondary)'
-          }}>
-            ↻ Recalculer
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button onClick={recalculer} disabled={recalculating} className='btn-secondary' style={{ fontSize: '13px' }}>
+            {recalculating ? 'Calcul...' : 'Recalculer'}
           </button>
-          <button onClick={handleSave} disabled={saving} className="btn-primary">
-            {saving ? 'Enregistrement...' : saved ? '✓ Enregistré' : 'Enregistrer l\'analyse'}
+          <button onClick={enregistrer} disabled={saving} className='btn-primary' style={{ fontSize: '13px' }}>
+            {saved ? 'Enregistre !' : saving ? 'Enregistrement...' : 'Enregistrer l\'analyse'}
           </button>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-        {/* Score global */}
-        <div className="card">
-          <h2 className="card-title" style={{ marginBottom: '1.25rem' }}>Score global</h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '1.5rem' }}>
-            <div style={{
-              width: '5rem', height: '5rem', borderRadius: '50%', flexShrink: 0,
-              border: `4px solid ${globalColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: `${globalColor}15`
-            }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: 900, color: globalColor, lineHeight: 1 }}>{analyse.score_global}</div>
-                <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>/100</div>
-              </div>
-            </div>
+      {/* Score global + ratios */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+        <div className='card' style={{ padding: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px' }}>
+            <ScoreRing score={score} size={90} />
             <div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
-                {analyse.lecture_metier}
-              </div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-                Risque {analyse.niveau_risque === 'faible' ? '🟢 Faible' : analyse.niveau_risque === 'moyen' ? '🟡 Moyen' : analyse.niveau_risque === 'eleve' ? '🔴 Élevé' : '⛔ Critique'}
+              <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--gray-900)', marginBottom: '4px' }}>{scoreLabel}</div>
+              <div style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
+                Risque <span style={{ fontWeight: 600, color: score >= 75 ? '#059669' : score >= 50 ? '#D97706' : '#DC2626' }}>
+                  {score >= 75 ? 'Faible' : score >= 50 ? 'Modere' : 'Eleve'}
+                </span>
               </div>
             </div>
           </div>
-          
-          <div style={{ borderTop: '1px solid var(--border-primary)', paddingTop: '1rem' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem', fontWeight: 600 }}>SCORING DÉTAILLÉ</div>
-            <ScoreBar label="Stabilité professionnelle" value={analyse.score_stabilite_pro || 0} color={getScoreColor(analyse.score_stabilite_pro)} />
-            <ScoreBar label="Endettement" value={analyse.score_endettement || 0} color={getScoreColor(analyse.score_endettement)} />
-            <ScoreBar label="Apport personnel" value={analyse.score_apport || 0} color={getScoreColor(analyse.score_apport)} />
-            <ScoreBar label="Reste à vivre" value={analyse.score_reste_a_vivre || 0} color={getScoreColor(analyse.score_reste_a_vivre)} />
-            <ScoreBar label="Saut de charge" value={analyse.score_saut_charge || 0} color={getScoreColor(analyse.score_saut_charge)} />
+          <div style={{ borderTop: '1px solid var(--gray-100)', paddingTop: '16px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px' }}>Scoring detaille</div>
+            <ScoreBar label='Stabilite professionnelle' score={analyse.score_stabilite || 0} />
+            <ScoreBar label='Taux d\'endettement' score={analyse.score_endettement || 0} />
+            <ScoreBar label='Patrimoine personnel' score={analyse.score_patrimoine || 0} />
+            <ScoreBar label='Reste a vivre' score={analyse.score_reste_a_vivre || 0} />
+            <ScoreBar label='Niveau de charge' score={analyse.score_charge || 0} />
           </div>
         </div>
-
-        {/* Ratios clés */}
-        <div className="card">
-          <h2 className="card-title" style={{ marginBottom: '1rem' }}>Ratios financiers</h2>
+        <div className='card' style={{ padding: '24px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '16px' }}>Ratios financiers</div>
           {[
-            { label: 'Revenus retenus', value: formatCurrency(analyse.revenus_retenus) + '/mois', icon: '€' },
-            { label: 'Coût total projet', value: formatCurrency(analyse.cout_total_projet), icon: '⊞' },
-            { label: 'Besoin financement', value: formatCurrency(analyse.besoin_financement), icon: '◧' },
-            { label: 'Mensualité estimée', value: formatCurrency(analyse.mensualite_estimee) + '/mois', icon: '◉', alert: (analyse.taux_endettement || 0) > 35 },
-            { label: "Taux d'endettement", value: (analyse.taux_endettement || 0) + '%', icon: '%', alert: (analyse.taux_endettement || 0) > 35 },
-            { label: 'Reste à vivre', value: formatCurrency(analyse.reste_a_vivre) + '/mois', icon: '◈', alert: (analyse.reste_a_vivre || 0) < 800 },
-            { label: 'Reste à vivre/UC', value: formatCurrency(analyse.reste_a_vivre_uc) + '/UC', icon: '◯' },
-            { label: 'Ratio apport', value: (analyse.ratio_apport || 0) + '%', icon: '⊕' },
-            { label: 'Saut de charge', value: formatCurrency(analyse.saut_de_charge) + '/mois', icon: '↑' },
-          ].map((item, i) => (
-            <div key={i} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '0.5rem 0', borderBottom: '1px solid var(--border-primary)'
-            }}>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                {item.icon} {item.label}
+            { icon: 'EUR', label: 'Revenus retenus', val: analyse.revenus_retenus ? analyse.revenus_retenus.toLocaleString('fr-FR') + ' EUR/mois' : '-' },
+            { icon: 'BLD', label: 'Cout total projet', val: analyse.cout_total_projet ? analyse.cout_total_projet.toLocaleString('fr-FR') + ' EUR' : '-' },
+            { icon: 'FIN', label: 'Besoin financement', val: analyse.besoin_financement ? analyse.besoin_financement.toLocaleString('fr-FR') + ' EUR' : '-' },
+            { icon: 'MEN', label: 'Mensualite estimee', val: analyse.mensualite_estimee ? analyse.mensualite_estimee.toLocaleString('fr-FR') + ' EUR/mois' : '-' },
+            { icon: 'PCT', label: 'Taux d\'endettement', val: analyse.taux_endettement ? analyse.taux_endettement.toFixed(1) + '%' : '-', highlight: analyse.taux_endettement ? (analyse.taux_endettement > 35 ? 'alert' : 'ok') : undefined },
+            { icon: 'RAV', label: 'Reste a vivre', val: analyse.reste_a_vivre ? analyse.reste_a_vivre.toLocaleString('fr-FR') + ' EUR/mois' : '-', highlight: analyse.reste_a_vivre ? (analyse.reste_a_vivre < 1200 ? 'alert' : 'ok') : undefined },
+            { icon: 'APT', label: 'Ratio apport', val: analyse.ratio_apport ? analyse.ratio_apport.toFixed(1) + '%' : '-', highlight: analyse.ratio_apport ? (analyse.ratio_apport < 10 ? 'alert' : 'ok') : undefined },
+            { icon: 'SAU', label: 'Saut de charge', val: analyse.saut_de_charge ? analyse.saut_de_charge.toLocaleString('fr-FR') + ' EUR/mois' : '-' },
+          ].map(row => (
+            <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--gray-50)' }}>
+              <span style={{ fontSize: '13px', color: 'var(--gray-500)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--gray-400)', letterSpacing: '0.05em' }}>{row.icon}</span>
+                {row.label}
               </span>
-              <span style={{ fontSize: '0.875rem', fontWeight: 700, color: item.alert ? 'var(--risk-high)' : 'var(--text-primary)' }}>
-                {item.value} {item.alert && '⚠'}
+              <span style={{ fontSize: '14px', fontWeight: 700, color: row.highlight === 'alert' ? '#DC2626' : row.highlight === 'ok' ? '#059669' : 'var(--gray-900)' }}>
+                {row.val}
               </span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Points forts / faibles */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginTop: '1.5rem' }}>
-        <div className="card">
-          <h2 className="card-title" style={{ marginBottom: '1rem', color: 'var(--risk-low)' }}>✓ Points forts</h2>
-          {(analyse.points_forts || []).length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Aucun point fort identifié</p>
-          ) : (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {(analyse.points_forts || []).map((pt, i) => (
-                <li key={i} style={{
-                  padding: '0.5rem 0.75rem', background: 'rgba(16, 185, 129, 0.08)',
-                  borderRadius: '0.375rem', borderLeft: '3px solid var(--risk-low)',
-                  fontSize: '0.875rem', color: 'var(--text-secondary)'
-                }}>
-                  {pt}
-                </li>
+      {/* Bankabilite verdict */}
+      <div className='card' style={{ marginBottom: '16px', borderLeft: '4px solid ' + bconf.border, background: bconf.bg, padding: '20px 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ textAlign: 'center', minWidth: '80px' }}>
+            <div style={{ fontSize: '28px', fontWeight: 800, color: bconf.color }}>{bconf.label}</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: bconf.color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{bconf.sublabel}</div>
+          </div>
+          <div style={{ width: '1px', height: '48px', background: bconf.border }}></div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)', marginBottom: '4px' }}>Verdict bancabilite CortIA</div>
+            <p style={{ fontSize: '13px', color: 'var(--gray-600)', lineHeight: 1.6 }}>{bconf.desc}</p>
+          </div>
+          {bankTargets.length > 0 && (
+            <div style={{ minWidth: '180px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Banques cibles suggeres</div>
+              {bankTargets.slice(0, 3).map(b => (
+                <div key={b} style={{ fontSize: '13px', color: 'var(--gray-700)', padding: '3px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: bconf.color, display: 'inline-block' }}></span>
+                  {b}
+                </div>
               ))}
-            </ul>
-          )}
-        </div>
-        <div className="card">
-          <h2 className="card-title" style={{ marginBottom: '1rem', color: 'var(--risk-high)' }}>⚠ Points de vigilance</h2>
-          {(analyse.points_faibles || []).length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Aucun point de vigilance détecté</p>
-          ) : (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {(analyse.points_faibles || []).map((pt, i) => (
-                <li key={i} style={{
-                  padding: '0.5rem 0.75rem', background: 'rgba(239, 68, 68, 0.08)',
-                  borderRadius: '0.375rem', borderLeft: '3px solid var(--risk-high)',
-                  fontSize: '0.875rem', color: 'var(--text-secondary)'
-                }}>
-                  {pt}
-                </li>
-              ))}
-            </ul>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Axes d'optimisation */}
-      {(analyse.axes_optimisation || []).length > 0 && (
-        <div className="card" style={{ marginTop: '1.5rem' }}>
-          <h2 className="card-title" style={{ marginBottom: '1rem' }}>⊕ Axes d'optimisation</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '0.75rem' }}>
-            {(analyse.axes_optimisation || []).map((axe, i) => (
-              <div key={i} style={{
-                padding: '0.75rem 1rem', background: 'var(--surface-secondary)',
-                borderRadius: '0.5rem', border: '1px solid var(--border-primary)',
-                fontSize: '0.875rem', color: 'var(--text-secondary)',
-                display: 'flex', alignItems: 'flex-start', gap: '0.5rem'
-              }}>
-                <span style={{ color: 'var(--brand-blue)', fontWeight: 700, flexShrink: 0 }}>{i + 1}.</span>
-                {axe}
+      {/* Points forts + vigilance */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+        <div className='card' style={{ padding: '20px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Points forts</div>
+          {(analyse.points_forts && analyse.points_forts.length > 0) ? (
+            analyse.points_forts.map((p, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 12px', borderRadius: '8px', background: '#F0FDF4', marginBottom: '8px', border: '1px solid #BBF7D0' }}>
+                <span style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }}>
+                  <span style={{ color: 'white', fontSize: '9px', fontWeight: 800 }}>OK</span>
+                </span>
+                <span style={{ fontSize: '13px', color: '#065F46', lineHeight: 1.5 }}>{p}</span>
               </div>
-            ))}
-          </div>
+            ))
+          ) : (
+            <div style={{ fontSize: '13px', color: 'var(--gray-400)', fontStyle: 'italic' }}>Aucun point fort detecte</div>
+          )}
+        </div>
+        <div className='card' style={{ padding: '20px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#D97706', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Points de vigilance</div>
+          {(analyse.points_vigilance && analyse.points_vigilance.length > 0) ? (
+            analyse.points_vigilance.map((p, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 12px', borderRadius: '8px', background: '#FFFBEB', marginBottom: '8px', border: '1px solid #FDE68A' }}>
+                <span style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#F59E0B', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }}>
+                  <span style={{ color: 'white', fontSize: '9px', fontWeight: 800 }}>!</span>
+                </span>
+                <span style={{ fontSize: '13px', color: '#92400E', lineHeight: 1.5 }}>{p}</span>
+              </div>
+            ))
+          ) : (
+            <div style={{ fontSize: '13px', color: 'var(--gray-400)', fontStyle: 'italic' }}>Aucun point de vigilance detecte</div>
+          )}
+        </div>
+      </div>
+
+      {/* Lecture metier */}
+      {analyse.lecture_metier && (
+        <div className='card' style={{ padding: '20px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px' }}>Lecture metier CortIA</div>
+          <p style={{ fontSize: '14px', color: 'var(--gray-700)', lineHeight: 1.7, fontWeight: 500 }}>
+            {analyse.lecture_metier}
+          </p>
         </div>
       )}
 
-      {/* Lecture métier */}
-      <div className={`lecture-metier-bloc ${lectureClass}`} style={{ marginTop: '1.5rem' }}>
-        <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.5rem' }}>
-          Lecture métier CortIA — {analyse.lecture_metier}
-        </div>
-        {(analyse.recommandations || []).map((r, i) => (
-          <div key={i} style={{ fontSize: '0.875rem', opacity: 0.9 }}>→ {r}</div>
-        ))}
-      </div>
     </div>
   );
 }
