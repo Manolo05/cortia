@@ -96,7 +96,7 @@ export default function AnalysePage() {
     setLoading(true);
     const [dossierRes, analyseRes] = await Promise.all([
       supabase.from('dossiers').select('*').eq('id', dossierId).single(),
-      supabase.from('analyses').select('*').eq('dossier_id', dossierId).order('created_at', { ascending: false }).limit(1).single()
+      supabase.from('analyses_financieres').select('*').eq('dossier_id', dossierId).order('created_at', { ascending: false }).limit(1).single()
     ]);
     if (dossierRes.data) setDossier(dossierRes.data);
     if (analyseRes.data) setAnalyse(analyseRes.data);
@@ -106,7 +106,7 @@ export default function AnalysePage() {
   async function recalculer() {
     setRecalculating(true);
     try {
-      const res = await fetch('/api/dossiers/' + dossierId + '/analyse', { method: 'POST' });
+      const res = await fetch('/api/dossiers/' + dossierId + '/analyses', { method: 'POST' });
       if (res.ok) { const data = await res.json(); setAnalyse(data); }
     } catch (e) {}
     setRecalculating(false);
@@ -120,7 +120,7 @@ export default function AnalysePage() {
     setTimeout(() => setSaved(false), 3000);
   }
 
-  if (loading) return <div className='loading-container'><div className='loading-spinner'></div><p>Chargement de l\'analyse...</p></div>;
+  if (loading) return <div className='loading-container'><div className='loading-spinner'></div><p>{"Chargement de l'analyse..."}</p></div>;
   if (!analyse) return (
     <div className='empty-state'>
       <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'var(--gray-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontWeight: 700, fontSize: '10px', color: 'var(--gray-400)', letterSpacing: '0.1em' }}>IA</div>
@@ -173,7 +173,7 @@ export default function AnalysePage() {
           <div style={{ borderTop: '1px solid var(--gray-100)', paddingTop: '16px' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px' }}>Scoring detaille</div>
             <ScoreBar label='Stabilite professionnelle' score={analyse.score_stabilite || 0} />
-            <ScoreBar label='Taux d\'endettement' score={analyse.score_endettement || 0} />
+            <ScoreBar label="Taux d'endettement" score={analyse.score_endettement || 0} />
             <ScoreBar label='Patrimoine personnel' score={analyse.score_patrimoine || 0} />
             <ScoreBar label='Reste a vivre' score={analyse.score_reste_a_vivre || 0} />
             <ScoreBar label='Niveau de charge' score={analyse.score_charge || 0} />
