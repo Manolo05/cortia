@@ -20,48 +20,48 @@ export default async function CabinetPage() {
   const cabinet = profil?.cabinet
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Mon cabinet</h1>
+    <div style={{ padding: '1.5rem', maxWidth: '56rem', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>Mon cabinet</h1>
 
       {/* Infos cabinet */}
-      <div className="cortia-card p-6">
-        <div className="flex items-start justify-between">
+      <div className="cortia-card" style={{ padding: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
-            <h2 className="text-xl font-bold text-gray-900">{cabinet?.nom}</h2>
-            {cabinet?.siret && <p className="text-sm text-gray-500 mt-1">SIRET : {cabinet.siret}</p>}
-            {cabinet?.email && <p className="text-sm text-gray-500">{cabinet.email}</p>}
-            {cabinet?.telephone && <p className="text-sm text-gray-500">{cabinet.telephone}</p>}
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827' }}>{cabinet?.nom}</h2>
+            {cabinet?.adresse && <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.25rem' }}>{cabinet.adresse}</p>}
           </div>
-          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-            cabinet?.plan_abonnement === 'pro' ? 'bg-purple-100 text-purple-700' :
-            cabinet?.plan_abonnement === 'enterprise' ? 'bg-gold-100 text-yellow-700' :
-            'bg-blue-100 text-blue-700'
-          }`}>
-            Plan {cabinet?.plan_abonnement}
-          </span>
+        </div>
+        <div style={{ marginTop: '1rem', display: 'flex', gap: '2rem' }}>
+          <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>Plan {cabinet?.plan || 'starter'}</p>
         </div>
       </div>
 
       {/* Membres */}
       <div className="cortia-card">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-900">Membres ({membres?.length || 0})</h2>
-          <Link href="/cabinet/membres" className="cortia-button-primary text-sm">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.5rem', borderBottom: '1px solid #f3f4f6' }}>
+          <h2 style={{ fontWeight: 600, color: '#111827' }}>Membres ({membres?.length || 0})</h2>
+          <Link href="/cabinet/membres" className="cortia-button-primary" style={{ fontSize: '0.875rem' }}>
             + Inviter
           </Link>
         </div>
-        <div className="divide-y divide-gray-50">
+        <div>
           {membres?.map(membre => (
-            <div key={membre.id} className="px-6 py-4 flex items-center justify-between">
+            <div key={membre.id} style={{ padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f9fafb' }}>
               <div>
-                <p className="font-medium text-gray-900">{membre.nom_complet}</p>
-                <p className="text-sm text-gray-500">{membre.email}</p>
+                <p style={{ fontWeight: 500, color: '#111827' }}>{membre.nom_complet}</p>
+                <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>{membre.email}</p>
               </div>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                membre.role === 'admin' ? 'bg-purple-100 text-purple-700' :
-                membre.role === 'courtier' ? 'bg-blue-100 text-blue-700' :
-                'bg-gray-100 text-gray-600'
-              }`}>
+              <span style={{
+                padding: '0.125rem 0.625rem',
+                borderRadius: '9999px',
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                ...(membre.role === 'admin'
+                  ? { background: '#f3e8ff', color: '#7e22ce' }
+                  : membre.role === 'courtier'
+                  ? { background: '#dbeafe', color: '#1d4ed8' }
+                  : { background: '#f3f4f6', color: '#4b5563' })
+              }}>
                 {membre.role}
               </span>
             </div>
