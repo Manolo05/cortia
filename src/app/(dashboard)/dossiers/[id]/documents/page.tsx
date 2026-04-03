@@ -15,35 +15,26 @@ interface Document {
 }
 
 const TYPES_DOCS = [
-  { value: 'identite', label: 'Piece d identite' },
-  { value: 'domicile', label: 'Justificatif de domicile' },
-  { value: 'fiche_paie', label: 'Fiche de paie' },
-  { value: 'avis_imposition', label: 'Avis d imposition' },
-  { value: 'releve_bancaire', label: 'Releve bancaire' },
-  { value: 'compromis', label: 'Compromis / Promesse de vente' },
-  { value: 'titre_propriete', label: 'Titre de propriete' },
-  { value: 'autre', label: 'Autre document' },
+  { value: 'identite', label: 'Piece identite', icon: 'ID', required: true },
+  { value: 'domicile', label: 'Justificatif domicile', icon: 'ADR', required: true },
+  { value: 'fiche_paie', label: 'Bulletins salaire', icon: 'SAL', required: true },
+  { value: 'avis_imposition', label: 'Avis imposition', icon: 'AVI', required: true },
+  { value: 'releve_bancaire', label: 'Releves bancaires', icon: 'BNQ', required: true },
+  { value: 'compromis', label: 'Compromis vente', icon: 'CPR', required: false },
+  { value: 'titre_propriete', label: 'Titre propriete', icon: 'TTR', required: false },
+  { value: 'autre', label: 'Autre document', icon: 'DOC', required: false },
 ]
 
-function getTypeLabel(type: string) {
-  return TYPES_DOCS.find(t => t.value === type)?.label || type
+function getTypeInfo(type: string) {
+  return TYPES_DOCS.find(t => t.value === type) || { value: type, label: type, icon: 'DOC', required: false }
 }
 
-function getStatutBadge(statut?: string) {
+function getStatutConfig(statut?: string) {
   switch (statut) {
-    case 'valide': return 'badge-success'
-    case 'a_verifier': return 'badge-warning'
-    case 'refuse': return 'badge-danger'
-    default: return 'badge-neutral'
-  }
-}
-
-function getStatutLabel(statut?: string) {
-  switch (statut) {
-    case 'valide': return 'Valide'
-    case 'a_verifier': return 'A verifier'
-    case 'refuse': return 'Refuse'
-    default: return 'En attente'
+    case 'valide': return { label: 'Valide', bg: '#ECFDF5', color: '#059669', border: '#A7F3D0' }
+    case 'a_verifier': return { label: 'A verifier', bg: '#FFFBEB', color: '#D97706', border: '#FDE68A' }
+    case 'refuse': return { label: 'Refuse', bg: '#FEF2F2', color: '#DC2626', border: '#FECACA' }
+    default: return { label: 'En attente', bg: '#F8FAFC', color: '#64748B', border: '#E2E8F0' }
   }
 }
 
@@ -58,344 +49,271 @@ export default function DocumentsPage() {
   const params = useParams()
   const dossierId = params.id as string
   const supabase = createClientComponentClient()
-
   const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [formData, setFormData] = useState({ nom: '', type: 'fiche_paie', statut: 'en_attente' })
   const [error, setError] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    fetchDocuments()
-  }, [dossierId])
+  useEffect(() => { fetchDocuments() }, [dossierId])
 
   async function fetchDocuments() {
     setLoading(true)
-    const res = await fetch(`/api/dossiers/${dossierId}/documents`)
-    if (res.ok) {
-      const data = await res.json()
-      setDocuments(data)
-    }
+    const res = await fetch('/api/dossiers/' + dossierId + '/documents')
+    if (res.ok) { const data = await res.json(); setDocuments(data) }
     setLoading(false)
   }
 
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    
+  async function handleUpload(file: File) {
     setUploading(true)
     setError(null)
-
     try {
-      const fileName = `${dossierId}/${Date.now()}_${file.name}`
+      const fileName = dossierId + '/' + Date.now() + '_' + file.name
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('documents')
         .upload(fileName, file, { upsert: false })
-
-      if (uploadError) throw uploadError
-
-      const { data: urlData } = supabase.storage.from('documents').getPublicUrl(fileName)
-
-      const payload = {
-        dossier_id: dossierId,
-        nom: formData.nom || file.name,
-        type: formData.type,
-        statut: formData.statut,
-        url: urlData.publicUrl,
-        taille: file.size,
-      }
-
-      const res = await fetch(`/api/dossiers/${dossierId}/documents`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      const url = uploadError ? undefined : supabase.storage.from('documents').getPublicUrl(fileName).data.publicUrl
+      const payload = { dossier_id: dossierId, nom: formData.nom || file.name, type: formData.type, statut: formData.statut, url, taille: file.size }
+      const res = await fetch('/api/dossiers/' + dossierId + '/documents', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       })
-
-      if (res.ok) {
-        await fetchDocuments()
-        setFormData({ nom: '', type: 'fiche_paie', statut: 'en_attente' })
-        setShowForm(false)
-      } else {
-        setError('Erreur lors de l enregistrement du document.')
-      }
-    } catch (err: any) {
-      // Fallback: save without file upload if storage not configured
-      const payload = {
-        dossier_id: dossierId,
-        nom: formData.nom || file.name,
-        type: formData.type,
-        statut: formData.statut,
-        taille: file.size,
-      }
-
-      const res = await fetch(`/api/dossiers/${dossierId}/documents`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (res.ok) {
-        await fetchDocuments()
-        setFormData({ nom: '', type: 'fiche_paie', statut: 'en_attente' })
-        setShowForm(false)
-      } else {
-        setError('Erreur lors de l enregistrement.')
-      }
-    }
-
+      if (res.ok) { await fetchDocuments(); setFormData({ nom: '', type: 'fiche_paie', statut: 'en_attente' }); setShowForm(false) }
+      else { setError('Erreur lors de l\'enregistrement.') }
+    } catch (err) { setError('Erreur lors du traitement.') }
     setUploading(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   async function addDocumentManual() {
-    setError(null)
-    if (!formData.nom) {
-      setError('Le nom du document est requis.')
-      return
-    }
-
-    const payload = {
-      dossier_id: dossierId,
-      nom: formData.nom,
-      type: formData.type,
-      statut: formData.statut,
-    }
-
-    const res = await fetch(`/api/dossiers/${dossierId}/documents`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+    if (!formData.nom) { setError('Le nom du document est requis.'); return }
+    const payload = { dossier_id: dossierId, nom: formData.nom, type: formData.type, statut: formData.statut }
+    const res = await fetch('/api/dossiers/' + dossierId + '/documents', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
     })
-
-    if (res.ok) {
-      await fetchDocuments()
-      setFormData({ nom: '', type: 'fiche_paie', statut: 'en_attente' })
-      setShowForm(false)
-    } else {
-      setError('Erreur lors de l enregistrement.')
-    }
+    if (res.ok) { await fetchDocuments(); setFormData({ nom: '', type: 'fiche_paie', statut: 'en_attente' }); setShowForm(false) }
+    else { setError('Erreur.') }
   }
 
   async function updateStatut(docId: string, statut: string) {
-    await fetch(`/api/dossiers/${dossierId}/documents?documentId=${docId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ statut }),
+    await fetch('/api/dossiers/' + dossierId + '/documents?documentId=' + docId, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ statut })
     })
     fetchDocuments()
   }
 
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) handleUpload(file)
+  }
+
   if (loading) {
     return (
-      <div className="loading-container">
-        <div className="loading-spinner"></div>
+      <div className='loading-container'>
+        <div className='loading-spinner'></div>
         <p>Chargement des documents...</p>
       </div>
     )
   }
 
-  const typesComplets = TYPES_DOCS.filter(t => 
-    t.value !== 'autre' && documents.some(d => d.type === t.value)
-  )
-  const typeManquants = TYPES_DOCS.filter(t => 
-    t.value !== 'autre' && !documents.some(d => d.type === t.value)
-  )
+  const typesRequis = TYPES_DOCS.filter(t => t.required)
+  const typesFournis = typesRequis.filter(t => documents.some(d => d.type === t.value))
+  const typeManquants = typesRequis.filter(t => !documents.some(d => d.type === t.value))
+  const completionRate = Math.round((typesFournis.length / typesRequis.length) * 100)
 
   return (
-    <div className="page-container">
-      {/* Header */}
-      <div className="page-header">
+    <div className='page-container'>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div>
-          <h2 className="page-title">Documents</h2>
-          <p className="page-subtitle">
+          <h2 className='page-title'>Gestion documentaire</h2>
+          <p className='page-subtitle'>
             {documents.length} document{documents.length !== 1 ? 's' : ''} enregistre{documents.length !== 1 ? 's' : ''}
-            {typeManquants.length > 0 && ` · ${typeManquants.length} type(s) manquant(s)`}
+            {typeManquants.length > 0 ? ' - ' + typeManquants.length + ' type(s) manquant(s)' : ' - Dossier complet'}
           </p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="btn-primary">
+        <button onClick={() => setShowForm(!showForm)} className='btn-primary'>
           + Ajouter un document
         </button>
       </div>
 
-      {error && (
-        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '12px 16px', color: '#DC2626', fontSize: '14px', marginBottom: '16px' }}>
-          {error}
-        </div>
-      )}
-
-      {/* Checklist types */}
-      {typeManquants.length > 0 && (
-        <div className="card" style={{ marginBottom: '24px' }}>
-          <div className="card-header">
-            <h3 className="card-title" style={{ color: '#D97706' }}>Documents a fournir</h3>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+        <div className='card' style={{ padding: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-600)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Completude dossier</span>
+            <span style={{ fontSize: '22px', fontWeight: 700, color: completionRate === 100 ? '#059669' : completionRate >= 60 ? '#D97706' : '#DC2626' }}>
+              {completionRate}%
+            </span>
           </div>
+          <div style={{ background: 'var(--gray-100)', borderRadius: '99px', height: '8px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: completionRate + '%', borderRadius: '99px', background: completionRate === 100 ? '#059669' : completionRate >= 60 ? '#F59E0B' : '#EF4444', transition: 'width 0.5s ease' }}></div>
+          </div>
+          <p style={{ marginTop: '8px', fontSize: '13px', color: 'var(--gray-500)' }}>
+            {typesFournis.length} / {typesRequis.length} documents obligatoires fournis
+          </p>
+        </div>
+        <div className='card' style={{ padding: '20px' }}>
+          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-600)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '12px' }}>Statuts documents</span>
+          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+            {[
+              { label: 'Valides', val: documents.filter(d => d.statut === 'valide').length, color: '#059669' },
+              { label: 'A verifier', val: documents.filter(d => d.statut === 'a_verifier').length, color: '#D97706' },
+              { label: 'En attente', val: documents.filter(d => !d.statut || d.statut === 'en_attente').length, color: '#64748B' },
+              { label: 'Refuses', val: documents.filter(d => d.statut === 'refuse').length, color: '#DC2626' },
+            ].map(s => (
+              <div key={s.label} style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '22px', fontWeight: 700, color: s.color }}>{s.val}</div>
+                <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '2px' }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {typeManquants.length > 0 && (
+        <div className='card' style={{ marginBottom: '24px', borderLeft: '3px solid #F59E0B', background: '#FFFBEB', padding: '16px 20px' }}>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: '#92400E', marginBottom: '10px' }}>Documents manquants ({typeManquants.length})</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
             {typeManquants.map(t => (
-              <span key={t.value} style={{
-                padding: '4px 12px', borderRadius: '20px', fontSize: '13px',
-                background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A',
-                display: 'flex', alignItems: 'center', gap: '6px'
-              }}>
-                <span>⚠️</span> {t.label}
+              <span key={t.value} style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '12px', background: 'white', color: '#92400E', border: '1px solid #FDE68A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }}></span>
+                {t.label}
               </span>
             ))}
           </div>
         </div>
       )}
 
-      {/* Formulaire ajout */}
-      {showForm && (
-        <div className="card" style={{ marginBottom: '24px' }}>
-          <div className="card-header">
-            <h3 className="card-title">Ajouter un document</h3>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-              <div className="form-group">
-                <label className="form-label">Type de document</label>
-                <select
-                  value={formData.type}
-                  onChange={e => setFormData(p => ({ ...p, type: e.target.value }))}
-                  className="form-select"
-                >
-                  {TYPES_DOCS.map(t => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Nom / Reference</label>
-                <input
-                  value={formData.nom}
-                  onChange={e => setFormData(p => ({ ...p, nom: e.target.value }))}
-                  className="form-input"
-                  placeholder="Ex: Fiche paie mars 2024"
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Statut</label>
-                <select
-                  value={formData.statut}
-                  onChange={e => setFormData(p => ({ ...p, statut: e.target.value }))}
-                  className="form-select"
-                >
-                  <option value="en_attente">En attente</option>
-                  <option value="a_verifier">A verifier</option>
-                  <option value="valide">Valide</option>
-                  <option value="refuse">Refuse</option>
-                </select>
-              </div>
-            </div>
+      {error && (
+        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '12px 16px', color: '#DC2626', fontSize: '14px', marginBottom: '16px' }}>{error}</div>
+      )}
 
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <label style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                padding: '8px 16px', borderRadius: '8px',
-                background: 'var(--gray-100)', border: '1px dashed var(--gray-300)',
-                cursor: 'pointer', fontSize: '13px', color: 'var(--gray-600)',
-                fontWeight: 500
-              }}>
-                <span>📎</span>
-                {uploading ? 'Telechargement...' : 'Choisir un fichier'}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  onChange={handleUpload}
-                  style={{ display: 'none' }}
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                />
-              </label>
-              <span style={{ color: 'var(--gray-400)', fontSize: '13px' }}>ou</span>
-              <button onClick={addDocumentManual} className="btn-primary" style={{ fontSize: '13px' }}>
-                Enregistrer sans fichier
-              </button>
-              <button onClick={() => { setShowForm(false); setError(null) }} className="btn-secondary" style={{ fontSize: '13px' }}>
-                Annuler
-              </button>
+      {showForm && (
+        <div className='card' style={{ marginBottom: '24px' }}>
+          <div className='card-header'><h3 className='card-title'>Ajouter un document</h3></div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+            <div className='form-group'>
+              <label className='form-label'>Type</label>
+              <select value={formData.type} onChange={e => setFormData(p => ({ ...p, type: e.target.value }))} className='form-select'>
+                {TYPES_DOCS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
             </div>
+            <div className='form-group'>
+              <label className='form-label'>Nom / Reference</label>
+              <input value={formData.nom} onChange={e => setFormData(p => ({ ...p, nom: e.target.value }))} className='form-input' placeholder='Ex: Fiche paie mars 2024' />
+            </div>
+            <div className='form-group'>
+              <label className='form-label'>Statut initial</label>
+              <select value={formData.statut} onChange={e => setFormData(p => ({ ...p, statut: e.target.value }))} className='form-select'>
+                <option value='en_attente'>En attente</option>
+                <option value='a_verifier'>A verifier</option>
+                <option value='valide'>Valide</option>
+              </select>
+            </div>
+          </div>
+          <div
+            onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            style={{ border: '2px dashed ' + (dragOver ? 'var(--brand-blue)' : 'var(--gray-300)'), borderRadius: '12px', padding: '32px', textAlign: 'center', cursor: 'pointer', background: dragOver ? '#EFF6FF' : 'var(--gray-50)', transition: 'all 0.2s ease', marginBottom: '16px' }}
+          >
+            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--gray-400)', letterSpacing: '0.1em', marginBottom: '8px' }}>PDF</div>
+            <p style={{ fontSize: '14px', color: 'var(--gray-600)', fontWeight: 500 }}>
+              {uploading ? 'Telechargement en cours...' : 'Deposez un fichier ici ou cliquez pour selectionner'}
+            </p>
+            <p style={{ fontSize: '12px', color: 'var(--gray-400)', marginTop: '4px' }}>PDF, JPG, PNG, DOC acceptes</p>
+            <input ref={fileInputRef} type='file' onChange={e => { if (e.target.files?.[0]) handleUpload(e.target.files[0]) }} style={{ display: 'none' }} accept='.pdf,.jpg,.jpeg,.png,.doc,.docx' />
+          </div>
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <button onClick={() => { setShowForm(false); setError(null) }} className='btn-secondary' style={{ fontSize: '13px' }}>Annuler</button>
+            <button onClick={addDocumentManual} className='btn-primary' style={{ fontSize: '13px' }}>Enregistrer sans fichier</button>
           </div>
         </div>
       )}
 
-      {/* Liste documents */}
       {documents.length > 0 ? (
-        <div className="card">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Document</th>
-                <th>Type</th>
-                <th>Taille</th>
-                <th>Date</th>
-                <th>Statut</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {documents.map(doc => (
-                <tr key={doc.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '18px' }}>📄</span>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--gray-900)' }}>{doc.nom}</div>
-                        {doc.url && (
-                          <a href={doc.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px', color: 'var(--brand-blue)' }}>
-                            Voir le fichier
-                          </a>
-                        )}
-                      </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+          {documents.map(doc => {
+            const typeInfo = getTypeInfo(doc.type)
+            const statutConf = getStatutConfig(doc.statut)
+            return (
+              <div key={doc.id} className='card' style={{ padding: '20px', borderLeft: '3px solid ' + statutConf.border }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                  <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'var(--gray-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '10px', color: 'var(--gray-500)', flexShrink: 0, border: '1px solid var(--gray-200)' }}>
+                    {typeInfo.icon}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--gray-900)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.nom}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginBottom: '8px' }}>
+                      {typeInfo.label} - {new Date(doc.created_at).toLocaleDateString('fr-FR')}{doc.taille ? ' - ' + formatTaille(doc.taille) : ''}
                     </div>
-                  </td>
-                  <td>
-                    <span style={{ fontSize: '13px', color: 'var(--gray-600)' }}>{getTypeLabel(doc.type)}</span>
-                  </td>
-                  <td>
-                    <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{formatTaille(doc.taille) || '-'}</span>
-                  </td>
-                  <td>
-                    <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
-                      {new Date(doc.created_at).toLocaleDateString('fr-FR')}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`badge ${getStatutBadge(doc.statut)}`}>
-                      {getStatutLabel(doc.statut)}
-                    </span>
-                  </td>
-                  <td>
-                    <select
-                      value={doc.statut || 'en_attente'}
-                      onChange={e => updateStatut(doc.id, e.target.value)}
-                      style={{
-                        fontSize: '12px', padding: '4px 8px', borderRadius: '6px',
-                        border: '1px solid var(--gray-200)', background: 'white',
-                        color: 'var(--gray-700)', cursor: 'pointer'
-                      }}
-                    >
-                      <option value="en_attente">En attente</option>
-                      <option value="a_verifier">A verifier</option>
-                      <option value="valide">Valide</option>
-                      <option value="refuse">Refuse</option>
-                    </select>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 600, background: statutConf.bg, color: statutConf.color, border: '1px solid ' + statutConf.border }}>
+                        {statutConf.label}
+                      </span>
+                      {doc.url && (
+                        <a href={doc.url} target='_blank' rel='noopener noreferrer' style={{ fontSize: '12px', color: 'var(--brand-blue)', fontWeight: 500 }}>
+                          Voir le fichier
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  <select
+                    value={doc.statut || 'en_attente'}
+                    onChange={e => updateStatut(doc.id, e.target.value)}
+                    style={{ fontSize: '11px', padding: '4px 6px', borderRadius: '6px', border: '1px solid var(--gray-200)', background: 'white', color: 'var(--gray-700)', cursor: 'pointer', flexShrink: 0 }}
+                  >
+                    <option value='en_attente'>En attente</option>
+                    <option value='a_verifier'>A verifier</option>
+                    <option value='valide'>Valide</option>
+                    <option value='refuse'>Refuse</option>
+                  </select>
+                </div>
+              </div>
+            )
+          })}
         </div>
       ) : (
-        <div className="empty-state">
-          <div style={{ fontSize: '48px', marginBottom: '12px' }}>📂</div>
-          <h3>Aucun document</h3>
-          <p>Ajoutez les pieces justificatives du dossier pour effectuer le controle documentaire</p>
-          <button onClick={() => setShowForm(true)} className="btn-primary" style={{ marginTop: '16px' }}>
-            + Ajouter un document
-          </button>
+        <div className='empty-state'>
+          <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'var(--gray-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontWeight: 700, fontSize: '10px', color: 'var(--gray-400)', letterSpacing: '0.1em' }}>DOC</div>
+          <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--gray-800)', marginBottom: '8px' }}>Aucun document</h3>
+          <p style={{ fontSize: '14px', color: 'var(--gray-500)', marginBottom: '24px' }}>Ajoutez les pieces justificatives du dossier pour effectuer le controle documentaire</p>
+          <button onClick={() => setShowForm(true)} className='btn-primary'>+ Ajouter un document</button>
         </div>
       )}
+
+      <div className='card' style={{ marginTop: '8px' }}>
+        <div className='card-header'>
+          <h3 className='card-title'>Checklist documentaire</h3>
+          <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>Documents obligatoires pour constitution du dossier bancaire</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
+          {typesRequis.map(t => {
+            const fourni = documents.some(d => d.type === t.value)
+            const doc = documents.find(d => d.type === t.value)
+            const conf = doc ? getStatutConfig(doc.statut) : null
+            return (
+              <div key={t.value} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '10px', background: fourni ? '#F0FDF4' : 'var(--gray-50)', border: '1px solid ' + (fourni ? '#BBF7D0' : 'var(--gray-200)') }}>
+                <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: fourni ? '#059669' : 'var(--gray-200)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ color: fourni ? 'white' : 'var(--gray-400)', fontSize: '10px', fontWeight: 700 }}>
+                    {fourni ? 'OK' : '-'}
+                  </span>
+                </div>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: fourni ? '#065F46' : 'var(--gray-600)' }}>{t.label}</div>
+                  {doc && conf && <div style={{ fontSize: '11px', color: conf.color }}>{conf.label}</div>}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
     </div>
   )
 }
