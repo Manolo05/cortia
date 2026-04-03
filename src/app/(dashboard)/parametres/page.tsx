@@ -11,63 +11,48 @@ export default async function ParametresPage() {
     .single()
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Paramètres</h1>
+    <div style={{ padding: '1.5rem', maxWidth: '42rem', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>Paramètres</h1>
 
-      <div className="cortia-card p-6">
-        <h2 className="font-semibold text-gray-900 mb-4">Mon profil</h2>
-        <div className="space-y-4">
+      {/* Profil section */}
+      <div className="cortia-card" style={{ padding: '1.5rem' }}>
+        <h2 style={{ fontWeight: 600, color: '#111827', marginBottom: '1rem' }}>Profil</h2>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div>
-            <label className="cortia-label">Nom complet</label>
-            <input
-              type="text"
-              defaultValue={profil?.nom_complet}
-              className="cortia-input"
-              readOnly
-            />
+            <p style={{ fontSize: '0.875rem', fontWeight: 500, color: '#374151' }}>Nom</p>
+            <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>{profil?.nom_complet || '-'}</p>
           </div>
           <div>
-            <label className="cortia-label">Email</label>
-            <input
-              type="email"
-              defaultValue={profil?.email}
-              className="cortia-input"
-              readOnly
-            />
+            <p style={{ fontSize: '0.875rem', fontWeight: 500, color: '#374151' }}>Email</p>
+            <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>{user?.email}</p>
           </div>
           <div>
-            <label className="cortia-label">Rôle</label>
-            <input
-              type="text"
-              defaultValue={profil?.role}
-              className="cortia-input"
-              readOnly
-            />
+            <p style={{ fontSize: '0.875rem', fontWeight: 500, color: '#374151' }}>Rôle</p>
+            <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>{profil?.role}</p>
           </div>
         </div>
-        <p className="text-sm text-gray-400 mt-4">
-          Pour modifier vos informations, contactez l'administrateur de votre cabinet.
-        </p>
       </div>
 
-      <div className="cortia-card p-6">
-        <h2 className="font-semibold text-gray-900 mb-4">Extension Chrome</h2>
-        <p className="text-sm text-gray-600 mb-4">
-          L'extension Chrome CortIA vous permet d'analyser des dossiers directement depuis les sites bancaires.
+      {/* Extension Chrome section */}
+      <div className="cortia-card" style={{ padding: '1.5rem' }}>
+        <h2 style={{ fontWeight: 600, color: '#111827', marginBottom: '1rem' }}>Extension Chrome</h2>
+        <p style={{ fontSize: '0.875rem', color: '#4b5563', marginBottom: '1rem' }}>
+          {"L'extension Chrome CortIA vous permet d'analyser des dossiers directement depuis les sites bancaires."}
         </p>
-        <div className="bg-gray-50 rounded-lg p-4">
-          <p className="text-sm font-medium text-gray-700">Clé d'API personnelle</p>
-          <p className="text-xs text-gray-500 mt-1">
-            Utilisez votre adresse email et mot de passe pour connecter l'extension.
+        <div style={{ background: '#f9fafb', borderRadius: '0.5rem', padding: '1rem' }}>
+          <p style={{ fontSize: '0.875rem', fontWeight: 500, color: '#374151' }}>{"Clé d'API personnelle"}</p>
+          <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+            {"Utilisez votre adresse email et mot de passe pour connecter l'extension."}
           </p>
         </div>
       </div>
 
-      <div className="cortia-card p-6">
-        <h2 className="font-semibold text-gray-900 mb-4">Sécurité</h2>
-        <div className="space-y-3">
-          <a href="/api/auth/signout" className="cortia-button-secondary w-full text-center block">
-            Se déconnecter
+      {/* Security section */}
+      <div className="cortia-card" style={{ padding: '1.5rem' }}>
+        <h2 style={{ fontWeight: 600, color: '#111827', marginBottom: '1rem' }}>{"Sécurité"}</h2>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <a href="/api/auth/signout" className="cortia-button-secondary" style={{ width: '100%', textAlign: 'center', display: 'block' }}>
+            {"Se déconnecter"}
           </a>
         </div>
       </div>
