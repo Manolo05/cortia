@@ -12,7 +12,7 @@ const NAV_ITEMS = [
   { href: '/analyses',   label: 'Analyses IA' },
 ]
 
-export default function Sidebar() {
+export function Sidebar() {
   const pathname = usePathname()
   const supabase = createClient()
   const [userName, setUserName] = useState('')
