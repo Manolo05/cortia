@@ -59,7 +59,7 @@ export default function NouveauDossierPage() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link href="/dossiers" className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors hover:bg-slate-100" style={{ color: '#64748b' }}>
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </Link>
@@ -80,7 +80,7 @@ export default function NouveauDossierPage() {
         <div className="cortia-card space-y-4">
           <div className="flex items-center gap-3 pb-4" style={{ borderBottom: '1px solid #f1f5f9' }}>
             <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(59,130,246,0.1)' }}>
-              <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg width="16" height="16" fill="none" stroke="#3b82f6" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             </div>
@@ -130,7 +130,7 @@ export default function NouveauDossierPage() {
         <div className="cortia-card space-y-4">
           <div className="flex items-center gap-3 pb-4" style={{ borderBottom: '1px solid #f1f5f9' }}>
             <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(16,185,129,0.1)' }}>
-              <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg width="16" height="16" fill="none" stroke="#22c55e" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
               </svg>
             </div>
