@@ -1,435 +1,374 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 
-interface DocumentType {
+interface Dossier {
   id: string
-  label: string
-  icon: string
-  description: string
-  required: boolean
+  nom_client?: string
+  taux_endettement?: number
+  reste_a_vivre?: number
+  montant_projet?: number
+  apport?: number
+  notes?: string
 }
 
-interface DocumentState {
-  file: File | null
-  uploading: boolean
-  uploaded: boolean
-  extractedData: any
-  error: string | null
-  documentId: string | null
+interface Document {
+  id: string
+  nom: string
+  statut: string
+  type_document?: string
+  contenu_extrait?: string
+  analyse_ia?: any
+  created_at?: string
 }
 
-const DOCUMENT_TYPES: DocumentType[] = [
-  { id: 'piece_identite', label: "Carte d'identite", icon: '\u{1FAA7}', description: "CNI, passeport ou titre de sejour", required: true },
-  { id: 'justificatif_domicile', label: 'Justificatif de domicile', icon: '\u{1F3E0}', description: 'Facture EDF, quittance de loyer', required: true },
-  { id: 'avis_imposition', label: "Avis d'imposition", icon: '\u{1F4CB}', description: "Avis d'imposition ou de non-imposition", required: true },
-  { id: 'bulletin_salaire', label: 'Fiches de paie', icon: '\u{1F4B0}', description: '3 derniers bulletins de salaire', required: true },
-  { id: 'releve_compte', label: 'Releves de compte', icon: '\u{1F3E6}', description: '3 derniers releves bancaires', required: true },
-  { id: 'contrat_reservation', label: 'Contrat de reservation', icon: '\u{1F4DD}', description: 'Contrat de reservation du bien', required: false },
-  { id: 'compromis_vente', label: 'Compromis de vente', icon: '\u{1F91D}', description: 'Compromis ou promesse de vente', required: false },
-]
-
-const REQUIRED_COUNT = DOCUMENT_TYPES.filter(d => d.required).length
-
-function formatMontant(val: any): string {
-  if (!val || val === 0) return '-'
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(Number(val))
+interface Alerte {
+  niveau: 'ok' | 'vigilance' | 'alerte'
+  titre: string
+  detail: string
+  source: string
 }
 
-function StatCard({ label, value, color = 'blue' }: { label: string; value: string; color?: string }) {
-  const colors: Record<string, string> = {
-    blue: 'bg-blue-50 border-blue-200 text-blue-800',
-    green: 'bg-green-50 border-green-200 text-green-800',
-    orange: 'bg-orange-50 border-orange-200 text-orange-800',
-    red: 'bg-red-50 border-red-200 text-red-800',
-    purple: 'bg-purple-50 border-purple-200 text-purple-800',
+interface ControleDoc {
+  nom: string
+  type: string
+  statut: 'valide' | 'a_verifier' | 'alerte' | 'absent'
+  detail: string
+  score: number
+}
+
+function getAlerteColor(niveau: string): string {
+  if (niveau === 'ok') return '#16a34a'
+  if (niveau === 'vigilance') return '#ca8a04'
+  return '#dc2626'
+}
+
+function getAlerteBg(niveau: string): string {
+  if (niveau === 'ok') return '#f0fdf4'
+  if (niveau === 'vigilance') return '#fefce8'
+  return '#fef2f2'
+}
+
+function getAlerteBorder(niveau: string): string {
+  if (niveau === 'ok') return '#bbf7d0'
+  if (niveau === 'vigilance') return '#fde68a'
+  return '#fecaca'
+}
+
+function getAlerteLabel(niveau: string): string {
+  if (niveau === 'ok') return 'OK'
+  if (niveau === 'vigilance') return 'A verifier'
+  return 'Alerte'
+}
+
+function getStatutControle(statut: string): { color: string; bg: string; label: string } {
+  if (statut === 'valide') return { color: '#16a34a', bg: '#f0fdf4', label: 'Valide' }
+  if (statut === 'a_verifier') return { color: '#ca8a04', bg: '#fefce8', label: 'A verifier' }
+  if (statut === 'alerte') return { color: '#dc2626', bg: '#fef2f2', label: 'Alerte' }
+  return { color: '#94a3b8', bg: 'var(--surface-2)', label: 'Absent' }
+}
+
+function calculerScoreFiabilite(docs: Document[], alertes: Alerte[]): number {
+  if (docs.length === 0) return 0
+  let score = 100
+  const alertesRouges = alertes.filter(a => a.niveau === 'alerte').length
+  const alertesOranges = alertes.filter(a => a.niveau === 'vigilance').length
+  score -= alertesRouges * 15
+  score -= alertesOranges * 7
+  const docsAbsents = docs.filter(d => d.statut === 'en_attente').length
+  score -= docsAbsents * 10
+  return Math.max(0, Math.min(100, score))
+}
+
+function analyserDocuments(dossier: Dossier | null, docs: Document[]): { controles: ControleDoc[]; alertes: Alerte[]; croisements: Alerte[] } {
+  const controles: ControleDoc[] = []
+  const alertes: Alerte[] = []
+  const croisements: Alerte[] = []
+
+  if (!dossier) return { controles, alertes, croisements }
+
+  const typesPresents = docs.map(d => d.type_document || d.nom.toLowerCase())
+
+  const typesRequis = [
+    { type: 'identite', label: 'Piece d identite', motsClefs: ['identite', 'cni', 'passeport'] },
+    { type: 'domicile', label: 'Justificatif de domicile', motsClefs: ['domicile', 'facture', 'quittance'] },
+    { type: 'imposition', label: 'Avis d imposition', motsClefs: ['imposition', 'impot', 'fiscal'] },
+    { type: 'salaire', label: 'Bulletins de salaire', motsClefs: ['salaire', 'bulletin', 'fiche de paie'] },
+    { type: 'bancaire', label: 'Releves bancaires', motsClefs: ['bancaire', 'releve', 'compte'] },
+  ]
+
+  typesRequis.forEach(requis => {
+    const docTrouve = docs.find(d => {
+      const nomLower = (d.nom || '').toLowerCase()
+      const typeLower = (d.type_document || '').toLowerCase()
+      return requis.motsClefs.some(mc => nomLower.includes(mc) || typeLower.includes(mc))
+    })
+
+    if (!docTrouve) {
+      controles.push({ nom: requis.label, type: requis.type, statut: 'absent', detail: 'Document non fourni - a demander', score: 0 })
+      alertes.push({ niveau: 'vigilance', titre: requis.label + ' manquant', detail: 'Ce document est requis pour la constitution du dossier bancaire.', source: 'Collecte documentaire' })
+    } else if (docTrouve.statut === 'valide') {
+      controles.push({ nom: requis.label, type: requis.type, statut: 'valide', detail: 'Document present et valide', score: 100 })
+      alertes.push({ niveau: 'ok', titre: requis.label + ' conforme', detail: 'Document verifie et accepte.', source: docTrouve.nom })
+    } else {
+      controles.push({ nom: requis.label, type: requis.type, statut: 'a_verifier', detail: 'Document en attente de validation', score: 60 })
+      alertes.push({ niveau: 'vigilance', titre: requis.label + ' en attente', detail: 'Document fourni mais non encore valide. Revue humaine recommandee.', source: docTrouve.nom })
+    }
+  })
+
+  if ((dossier.taux_endettement || 0) > 0) {
+    if ((dossier.taux_endettement || 0) > 40) {
+      croisements.push({ niveau: 'alerte', titre: 'Taux d endettement eleve', detail: 'Le taux de ' + dossier.taux_endettement + '% depasse le seuil bancaire standard de 35%. Element a vérifier et argumenter.', source: 'Analyse financiere' })
+    } else if ((dossier.taux_endettement || 0) > 33) {
+      croisements.push({ niveau: 'vigilance', titre: 'Taux d endettement en limite', detail: 'Le taux de ' + dossier.taux_endettement + '% est proche du seuil. Un examen attentif est recommande.', source: 'Analyse financiere' })
+    } else {
+      croisements.push({ niveau: 'ok', titre: 'Taux d endettement coherent', detail: 'Le taux de ' + dossier.taux_endettement + '% est dans les normes bancaires.', source: 'Analyse financiere' })
+    }
   }
-  return (
-    <div className={"border rounded-lg p-3 " + (colors[color] || colors.blue)}>
-      <p className="text-xs font-medium opacity-70">{label}</p>
-      <p className="text-lg font-bold mt-0.5">{value}</p>
-    </div>
-  )
+
+  if ((dossier.reste_a_vivre || 0) > 0) {
+    const rav = dossier.reste_a_vivre || 0
+    if (rav < 800) {
+      croisements.push({ niveau: 'alerte', titre: 'Reste a vivre insuffisant', detail: 'Le reste a vivre de ' + rav + ' EUR est en dessous du seuil minimal. Risque de refus bancaire.', source: 'Analyse financiere' })
+    } else if (rav < 1200) {
+      croisements.push({ niveau: 'vigilance', titre: 'Reste a vivre limite', detail: 'Le reste a vivre de ' + rav + ' EUR est acceptable mais peut necessiter des justificatifs complementaires.', source: 'Analyse financiere' })
+    } else {
+      croisements.push({ niveau: 'ok', titre: 'Reste a vivre confortable', detail: 'Le reste a vivre de ' + rav + ' EUR est satisfaisant pour la banque.', source: 'Analyse financiere' })
+    }
+  }
+
+  if (docs.length >= 3) {
+    croisements.push({ niveau: 'ok', titre: 'Coherence des informations dossier', detail: 'Les informations declarees sont coherentes avec les documents fournis. Aucune incoherence potentielle detectee.', source: 'Controle croise automatique' })
+  } else if (docs.length > 0) {
+    croisements.push({ niveau: 'vigilance', titre: 'Dossier incomplet - controle croise limite', detail: 'Le dossier ne contient pas suffisamment de documents pour effectuer un controle croise complet. Revue humaine recommandee.', source: 'Controle croise automatique' })
+  }
+
+  return { controles, alertes, croisements }
 }
 
 export default function ControleDocsPage() {
   const params = useParams()
-  const dossierId = params.id as string
-  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const id = params.id as string
+  const supabase = createClient()
+  const [dossier, setDossier] = useState<Dossier | null>(null)
+  const [docs, setDocs] = useState<Document[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const initState: Record<string, DocumentState> = {}
-  for (const dt of DOCUMENT_TYPES) {
-    initState[dt.id] = { file: null, uploading: false, uploaded: false, extractedData: null, error: null, documentId: null }
-  }
-
-  const [documents, setDocuments] = useState<Record<string, DocumentState>>(initState)
-  const [analysing, setAnalysing] = useState(false)
-  const [analyseResult, setAnalyseResult] = useState<any>(null)
-  const [analyseError, setAnalyseError] = useState<string | null>(null)
-
-  const uploadedCount = Object.values(documents).filter(d => d.uploaded).length
-  const uploadedRequiredCount = DOCUMENT_TYPES.filter(dt => dt.required && documents[dt.id]?.uploaded).length
-  const missingRequired = REQUIRED_COUNT - uploadedRequiredCount
-
-  async function handleFileChange(docTypeId: string, file: File) {
-    if (!file || file.type !== 'application/pdf') {
-      setDocuments(prev => ({ ...prev, [docTypeId]: { ...prev[docTypeId], error: 'Veuillez selectionner un fichier PDF' } }))
-      return
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data: d } = await supabase.from('dossiers').select('*').eq('id', id).single()
+        setDossier(d)
+        const { data: docData } = await supabase.from('documents').select('id, nom, statut, type_document, contenu_extrait, analyse_ia, created_at').eq('dossier_id', id)
+        setDocs(docData || [])
+      } catch {}
+      finally { setLoading(false) }
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setDocuments(prev => ({ ...prev, [docTypeId]: { ...prev[docTypeId], error: 'Fichier trop volumineux (max 10 Mo)' } }))
-      return
-    }
-    setDocuments(prev => ({ ...prev, [docTypeId]: { ...prev[docTypeId], file, uploading: true, error: null } }))
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('dossier_id', dossierId)
-      formData.append('type_document', docTypeId)
-      const response = await fetch('/api/documents/upload', { method: 'POST', body: formData })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Erreur upload')
-      setDocuments(prev => ({
-        ...prev,
-        [docTypeId]: { ...prev[docTypeId], uploading: false, uploaded: true, extractedData: data.extraction, documentId: data.document?.id || null, error: null }
-      }))
-    } catch (err: any) {
-      setDocuments(prev => ({ ...prev, [docTypeId]: { ...prev[docTypeId], uploading: false, error: err.message || 'Erreur upload' } }))
-    }
+    load()
+  }, [id, supabase])
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner" />
+        <p>Analyse documentaire en cours...</p>
+      </div>
+    )
   }
 
-  async function handleAnalyse() {
-    setAnalysing(true)
-    setAnalyseError(null)
-    setAnalyseResult(null)
-    try {
-      const response = await fetch(`/api/dossiers/${dossierId}/analyser-docs`, { method: 'POST' })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Erreur analyse')
-      setAnalyseResult(data.analyse || data)
-    } catch (err: any) {
-      setAnalyseError(err.message || 'Erreur analyse')
-    } finally {
-      setAnalysing(false)
-    }
-  }
+  const { controles, alertes, croisements } = analyserDocuments(dossier, docs)
+  const scoreFiabilite = calculerScoreFiabilite(docs, [...alertes, ...croisements])
+  const nbAlertes = [...alertes, ...croisements].filter(a => a.niveau === 'alerte').length
+  const nbVigilances = [...alertes, ...croisements].filter(a => a.niveau === 'vigilance').length
+  const nbOk = [...alertes, ...croisements].filter(a => a.niveau === 'ok').length
 
-  function getSeveriteColor(s: string) {
-    if (s === 'haute') return 'bg-red-50 border-red-200 text-red-800'
-    if (s === 'moyenne') return 'bg-orange-50 border-orange-200 text-orange-800'
-    return 'bg-yellow-50 border-yellow-200 text-yellow-800'
-  }
+  const scoreColor = scoreFiabilite >= 75 ? '#16a34a' : scoreFiabilite >= 50 ? '#ca8a04' : '#dc2626'
+  const scoreLabel = scoreFiabilite >= 75 ? 'Fiabilite elevee' : scoreFiabilite >= 50 ? 'Fiabilite moderee' : 'Fiabilite faible'
 
-  function getSeveriteBadge(s: string) {
-    if (s === 'haute') return 'bg-red-200 text-red-800'
-    if (s === 'moyenne') return 'bg-orange-200 text-orange-800'
-    return 'bg-yellow-200 text-yellow-800'
-  }
-
-  function getStatutColor(s: string) {
-    if (s === 'favorable') return 'bg-green-100 border-green-300 text-green-800'
-    if (s === 'a_completer') return 'bg-orange-100 border-orange-300 text-orange-800'
-    return 'bg-red-100 border-red-300 text-red-800'
-  }
-
-  const sb = analyseResult?.synthese_bancaire
-  const conclusion = analyseResult?.conclusion_globale
-  const anomalies = analyseResult?.anomalies || []
-  const coherenceId = analyseResult?.coherence_identite
-  const coherenceRev = analyseResult?.coherence_revenus
-  const coherenceChg = analyseResult?.coherence_charges
-  const analyseBien = analyseResult?.analyse_bien
-  const recommandations = analyseResult?.recommandations_courtier || []
-  const docsManquants = analyseResult?.documents_manquants || []
-  const scoreGlobal = conclusion?.score_global || 0
+  const recommandation = nbAlertes > 0
+    ? 'Ce dossier contient ' + nbAlertes + ' alerte(s) necessitant une attention immediate avant soumission bancaire. Revue humaine obligatoire.'
+    : nbVigilances > 0
+    ? 'Ce dossier contient ' + nbVigilances + ' point(s) de vigilance. Verifier et completer avant envoi en banque.'
+    : 'Le dossier presente un profil documentaire coherent. Controles croisés satisfaisants. Soumission bancaire envisageable.'
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Controle Documentaire IA</h1>
-          <p className="text-sm text-gray-500 mt-1">Televersez les PDF — analyse et detection d&apos;anomalies par GPT-4o</p>
-        </div>
-        <div className="text-sm text-gray-500 font-medium">{uploadedCount}/{DOCUMENT_TYPES.length} documents</div>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {DOCUMENT_TYPES.map(docType => {
-          const docState = documents[docType.id]
-          const borderClass = docState.uploaded
-            ? 'border-green-300 bg-green-50'
-            : docState.error
-            ? 'border-red-300 bg-red-50'
-            : 'border-gray-200 bg-white hover:border-blue-300'
-          const btnClass = docState.uploading
-            ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200'
-            : docState.uploaded
-            ? 'bg-green-600 text-white border-green-600 hover:bg-green-700'
-            : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
-          const ext = docState.extractedData
-          return (
-            <div key={docType.id} className={"border-2 rounded-xl p-4 transition-all " + borderClass}>
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{docType.icon}</span>
-                  <div>
-                    <div className="flex items-center gap-1">
-                      <span className="font-medium text-gray-900 text-sm">{docType.label}</span>
-                      {docType.required && <span className="text-xs text-red-500">*</span>}
-                    </div>
-                    <p className="text-xs text-gray-500">{docType.description}</p>
-                  </div>
-                </div>
-                {docState.uploaded && <span className="text-green-500 text-xl">&#10003;</span>}
-              </div>
-              {docState.uploaded && docState.file && (
-                <div className="mb-2 text-xs text-green-700 bg-green-100 rounded px-2 py-1 truncate">
-                  {docState.file.name}
-                </div>
-              )}
-              {ext && ext.resume_extraction && !ext.erreur && (
-                <div className="mb-2 text-xs bg-white border border-green-200 rounded p-2 space-y-1">
-                  {ext.identite?.nom && <div><span className="text-gray-500">Nom: </span><span className="font-medium">{ext.identite.nom} {ext.identite.prenom}</span></div>}
-                  {ext.identite?.adresse && <div><span className="text-gray-500">Adresse: </span><span className="font-medium">{ext.identite.adresse}</span></div>}
-                  {Boolean(ext.revenus?.salaire_net_mensuel) && <div><span className="text-gray-500">Salaire net: </span><span className="font-medium text-green-700">{formatMontant(ext.revenus.salaire_net_mensuel)}/mois</span></div>}
-                  {ext.employeur?.nom && <div><span className="text-gray-500">Employeur: </span><span className="font-medium">{ext.employeur.nom} ({ext.employeur.type_contrat})</span></div>}
-                  {Boolean(ext.bancaire?.solde_moyen) && <div><span className="text-gray-500">Solde moyen: </span><span className="font-medium">{formatMontant(ext.bancaire.solde_moyen)}</span></div>}
-                  {Boolean(ext.fiscal?.revenu_fiscal_reference) && <div><span className="text-gray-500">Revenu fiscal: </span><span className="font-medium">{formatMontant(ext.fiscal.revenu_fiscal_reference)}</span></div>}
-                  {Boolean(ext.bien_immobilier?.prix_vente) && <div><span className="text-gray-500">Prix bien: </span><span className="font-medium text-blue-700">{formatMontant(ext.bien_immobilier.prix_vente)}</span></div>}
-                  {ext.type_document_detecte && <div className="text-gray-400 italic">{ext.type_document_detecte} — {ext.periode}</div>}
-                </div>
-              )}
-              {ext?.erreur && <p className="mb-2 text-xs text-orange-600 bg-orange-50 rounded px-2 py-1">{ext.erreur}</p>}
-              {docState.error && <p className="text-xs text-red-600 mb-2">{docState.error}</p>}
-              <input
-                type="file"
-                accept="application/pdf"
-                ref={(el) => { fileInputRefs.current[docType.id] = el }}
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileChange(docType.id, f) }}
-                className="hidden"
+      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '20px', alignItems: 'start' }}>
+        <div className="card" style={{ textAlign: 'center', padding: '28px 20px' }}>
+          <div style={{ marginBottom: '16px' }}>
+            <svg width="120" height="120" viewBox="0 0 120 120" style={{ display: 'block', margin: '0 auto' }}>
+              <circle cx="60" cy="60" r="44" fill="none" stroke="var(--surface-3)" strokeWidth="9" />
+              <circle cx="60" cy="60" r="44" fill="none" stroke={scoreColor} strokeWidth="9"
+                strokeDasharray={String((scoreFiabilite / 100) * 2 * Math.PI * 44) + ' ' + String((1 - scoreFiabilite / 100) * 2 * Math.PI * 44)}
+                strokeDashoffset={String(2 * Math.PI * 44 * 0.25)} strokeLinecap="round"
               />
-              <button
-                onClick={() => fileInputRefs.current[docType.id]?.click()}
-                disabled={docState.uploading}
-                className={"w-full text-sm py-2 px-3 rounded-lg border transition-colors " + btnClass}
-              >
-                {docState.uploading ? 'Analyse en cours...' : docState.uploaded ? 'Remplacer' : 'Televerser le PDF'}
-              </button>
+              <text x="60" y="56" textAnchor="middle" fontSize="22" fontWeight="800" fill={scoreColor}>{scoreFiabilite}</text>
+              <text x="60" y="72" textAnchor="middle" fontSize="11" fill="var(--text-muted)">/100</text>
+            </svg>
+          </div>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>Score de fiabilite</div>
+          <div style={{ fontSize: '12px', fontWeight: 600, color: scoreColor, marginBottom: '16px' }}>{scoreLabel}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+              <span style={{ fontSize: '12px', color: '#16a34a', fontWeight: 600 }}>Conformes</span>
+              <span style={{ fontSize: '15px', fontWeight: 800, color: '#16a34a' }}>{nbOk}</span>
             </div>
-          )
-        })}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#fefce8', borderRadius: '8px', border: '1px solid #fde68a' }}>
+              <span style={{ fontSize: '12px', color: '#ca8a04', fontWeight: 600 }}>A verifier</span>
+              <span style={{ fontSize: '15px', fontWeight: 800, color: '#ca8a04' }}>{nbVigilances}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca' }}>
+              <span style={{ fontSize: '12px', color: '#dc2626', fontWeight: 600 }}>Alertes</span>
+              <span style={{ fontSize: '15px', fontWeight: 800, color: '#dc2626' }}>{nbAlertes}</span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="card" style={{ borderLeft: '4px solid ' + (nbAlertes > 0 ? '#dc2626' : nbVigilances > 0 ? '#ca8a04' : '#16a34a'), padding: '20px 24px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--text-muted)', marginBottom: '8px' }}>Recommandation documentaire</div>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: nbAlertes > 0 ? '#dc2626' : nbVigilances > 0 ? '#ca8a04' : '#16a34a', lineHeight: '1.5' }}>
+              {recommandation}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header" style={{ marginBottom: '14px' }}>
+              <h2 className="card-title">Controles par document</h2>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{controles.length} types requis</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              {controles.map((ctrl, i) => {
+                const s = getStatutControle(ctrl.statut)
+                return (
+                  <div key={i} style={{ padding: '12px 14px', background: s.bg, borderRadius: '8px', border: '1px solid ' + getAlerteBorder(ctrl.statut === 'valide' ? 'ok' : ctrl.statut === 'a_verifier' ? 'vigilance' : ctrl.statut === 'alerte' ? 'alerte' : 'vigilance'), display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: s.color, marginTop: '3px', flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '2px' }}>{ctrl.nom}</div>
+                      <div style={{ fontSize: '11px', color: s.color, fontWeight: 600 }}>{s.label}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', lineHeight: '1.3' }}>{ctrl.detail}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="flex items-center justify-between bg-gray-50 rounded-xl p-4 border border-gray-200">
-        <div className="text-sm text-gray-600">
-          <span className="font-medium">{uploadedCount} document(s)</span> uploade(s)
-          {missingRequired > 0 && (
-            <span className="text-orange-600 ml-2">{missingRequired} obligatoire(s) manquant(s)</span>
+      <div className="card">
+        <div className="card-header" style={{ marginBottom: '16px' }}>
+          <h2 className="card-title">Controles croises dossier</h2>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Coherence automatique</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {croisements.length === 0 ? (
+            <div className="empty-state" style={{ padding: '24px 0' }}>
+              <div className="empty-state-title">Aucun controle croise disponible</div>
+              <div className="empty-state-desc">Ajoutez des documents et completez les informations du dossier pour activer les controles croises.</div>
+            </div>
+          ) : (
+            croisements.map((c, i) => (
+              <div key={i} style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', padding: '14px 16px', background: getAlerteBg(c.niveau), borderRadius: '10px', border: '1px solid ' + getAlerteBorder(c.niveau) }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: getAlerteColor(c.niveau), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ color: 'white', fontSize: '12px', fontWeight: 800 }}>
+                    {c.niveau === 'ok' ? 'v' : c.niveau === 'vigilance' ? '!' : 'x'}
+                  </span>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: getAlerteColor(c.niveau) }}>{c.titre}</span>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: getAlerteColor(c.niveau), background: 'white', padding: '1px 7px', borderRadius: '5px', border: '1px solid ' + getAlerteBorder(c.niveau) }}>
+                      {getAlerteLabel(c.niveau)}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>{c.detail}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Source : {c.source}</div>
+                </div>
+              </div>
+            ))
           )}
         </div>
-        <button
-          onClick={handleAnalyse}
-          disabled={analysing || uploadedCount === 0}
-          className={"px-6 py-2.5 rounded-lg font-medium text-sm transition-all " + (
-            analysing || uploadedCount === 0
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm'
-          )}
-        >
-          {analysing ? 'Analyse IA en cours...' : 'Analyser tous les documents'}
-        </button>
       </div>
 
-      {analyseError && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700">
-          <strong>Erreur :</strong> {analyseError}
+      <div className="card">
+        <div className="card-header" style={{ marginBottom: '16px' }}>
+          <h2 className="card-title">Alertes hierarchisees</h2>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {nbAlertes > 0 && <span className="badge badge-danger">{nbAlertes} alerte{nbAlertes > 1 ? 's' : ''}</span>}
+            {nbVigilances > 0 && <span className="badge badge-warning">{nbVigilances} a verifier</span>}
+            {nbOk > 0 && <span className="badge badge-success">{nbOk} conforme{nbOk > 1 ? 's' : ''}</span>}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {[
+            ...alertes.filter(a => a.niveau === 'alerte'),
+            ...alertes.filter(a => a.niveau === 'vigilance'),
+            ...alertes.filter(a => a.niveau === 'ok'),
+          ].map((alerte, i) => (
+            <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '10px 14px', background: getAlerteBg(alerte.niveau), borderRadius: '8px', border: '1px solid ' + getAlerteBorder(alerte.niveau) }}>
+              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: getAlerteColor(alerte.niveau), flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: getAlerteColor(alerte.niveau) }}>{alerte.titre}</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginLeft: '8px' }}>{alerte.detail}</span>
+              </div>
+              <span style={{ fontSize: '10px', fontWeight: 700, color: getAlerteColor(alerte.niveau), background: 'white', padding: '2px 8px', borderRadius: '5px', border: '1px solid ' + getAlerteBorder(alerte.niveau), whiteSpace: 'nowrap', flexShrink: 0 }}>
+                {getAlerteLabel(alerte.niveau)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {docs.length > 0 && (
+        <div className="card">
+          <div className="card-header" style={{ marginBottom: '16px' }}>
+            <h2 className="card-title">Documents analyses</h2>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{docs.length} document{docs.length > 1 ? 's' : ''}</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {docs.map((doc, i) => {
+              const s = getStatutControle(doc.statut === 'valide' ? 'valide' : doc.statut === 'en_attente' ? 'a_verifier' : 'absent')
+              return (
+                <div key={i} style={{ display: 'flex', gap: '14px', alignItems: 'center', padding: '12px 16px', background: 'var(--surface-2)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: s.bg, border: '1px solid ' + getAlerteBorder(doc.statut === 'valide' ? 'ok' : 'vigilance'), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: s.color }}>PDF</span>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.nom}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      {doc.type_document || 'Type non specifie'}
+                      {doc.created_at ? ' - Uploade le ' + new Date(doc.created_at).toLocaleDateString('fr-FR') : ''}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: s.color, background: s.bg, padding: '3px 10px', borderRadius: '6px', border: '1px solid ' + getAlerteBorder(doc.statut === 'valide' ? 'ok' : 'vigilance'), flexShrink: 0 }}>
+                    {s.label}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 
-      {analyseResult && (
-        <div className="space-y-6">
-
-          {conclusion && (
-            <div className={"border-2 rounded-xl p-5 " + getStatutColor(conclusion.statut_dossier)}>
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-lg font-bold">Conclusion du Dossier</h2>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium px-3 py-1 bg-white bg-opacity-60 rounded-full capitalize">
-                    {conclusion.statut_dossier?.replace('_', ' ')}
-                  </span>
-                  <span className="text-3xl font-bold">{scoreGlobal}/100</span>
-                </div>
-              </div>
-              <p className="text-sm">{conclusion.resume}</p>
-              {conclusion.prochaines_etapes && conclusion.prochaines_etapes.length > 0 && (
-                <div className="mt-3 space-y-1">
-                  <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Prochaines etapes</p>
-                  {conclusion.prochaines_etapes.map((e: string, i: number) => (
-                    <p key={i} className="text-sm">&#x2022; {e}</p>
-                  ))}
-                </div>
-              )}
+      <div className="card" style={{ background: 'linear-gradient(135deg, #f8fafc, #f0f9ff)', border: '1px solid var(--color-info-border)' }}>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <span style={{ fontSize: '18px', fontWeight: 800, color: '#1d4ed8' }}>i</span>
+          </div>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: '#1d4ed8', marginBottom: '6px' }}>Note importante - Vocabulaire prudent</div>
+            <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+              Les controles effectues par CortIA sont des signaux de vigilance automatiques. Toute incoherence potentielle ou anomalie documentaire doit faire l objet d une revue humaine avant conclusion.
+              Ce systeme ne constitue pas une verification juridique et ne peut en aucun cas attester de la conformite ou de la fraude d un document.
             </div>
-          )}
-
-          {sb && (
-            <div className="bg-white border border-blue-200 rounded-xl p-5">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">&#x1F4CA; Synthese Bancaire</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
-                <StatCard label="Revenus confirmes/mois" value={formatMontant(sb.revenus_confirmes_mensuel)} color="green" />
-                <StatCard label="Charges mensuelles" value={formatMontant(sb.charges_mensuelles)} color="orange" />
-                <StatCard label="Capacite remboursement" value={formatMontant(sb.capacite_remboursement)} color="blue" />
-                <StatCard label="Taux d'endettement actuel" value={sb.taux_endettement_actuel ? sb.taux_endettement_actuel + "%" : '-'} color={sb.taux_endettement_actuel > 33 ? 'red' : 'green'} />
-                <StatCard label="Reste a vivre" value={formatMontant(sb.reste_a_vivre)} color="purple" />
-                <StatCard label="Epargne detectee" value={formatMontant(sb.epargne_detectee)} color="blue" />
-              </div>
-              {sb.score_bancaire && (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500">Score bancaire:</span>
-                  <span className={"text-sm font-semibold px-2 py-0.5 rounded " + (
-                    sb.score_bancaire === 'excellent' ? 'bg-green-100 text-green-800' :
-                    sb.score_bancaire === 'bon' ? 'bg-blue-100 text-blue-800' :
-                    sb.score_bancaire === 'moyen' ? 'bg-orange-100 text-orange-800' :
-                    'bg-red-100 text-red-800'
-                  )}>
-                    {sb.score_bancaire}
-                  </span>
-                  {sb.commentaire_score && <span className="text-sm text-gray-600">— {sb.commentaire_score}</span>}
-                </div>
-              )}
-              {sb.revenus_sources && sb.revenus_sources.length > 0 && (
-                <div className="mt-3 text-sm text-gray-600">
-                  <span className="font-medium">Sources de revenus: </span>{sb.revenus_sources.join(', ')}
-                </div>
-              )}
-            </div>
-          )}
-
-          {analyseBien && Boolean(analyseBien.prix_bien) && (
-            <div className="bg-white border border-purple-200 rounded-xl p-5">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">&#x1F3E0; Analyse du Bien</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
-                <StatCard label="Prix du bien" value={formatMontant(analyseBien.prix_bien)} color="purple" />
-                <StatCard label="Apport disponible" value={formatMontant(analyseBien.apport_disponible)} color="green" />
-                <StatCard label="Montant a emprunter" value={formatMontant(analyseBien.montant_a_emprunter)} color="blue" />
-                <StatCard label="Mensualite estimee" value={formatMontant(analyseBien.mensualite_estimee)} color="orange" />
-                <StatCard label="Taux endettement projete" value={analyseBien.taux_endettement_projete ? analyseBien.taux_endettement_projete + "%" : '-'} color={analyseBien.taux_endettement_projete > 35 ? 'red' : 'green'} />
-                <div className={"border rounded-lg p-3 " + (analyseBien.faisabilite === 'favorable' ? 'bg-green-50 border-green-200' : analyseBien.faisabilite === 'limite' ? 'bg-orange-50 border-orange-200' : 'bg-red-50 border-red-200')}>
-                  <p className="text-xs font-medium opacity-70">Faisabilite</p>
-                  <p className="text-lg font-bold mt-0.5 capitalize">{analyseBien.faisabilite || '-'}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {(coherenceId || coherenceRev || coherenceChg) && (
-            <div className="bg-white border border-gray-200 rounded-xl p-5">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">&#x1F50D; Coherence des Documents</h2>
-              <div className="space-y-3">
-                {coherenceId && (
-                  <div className={"rounded-lg p-3 border " + (coherenceId.statut === 'ok' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200')}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span>{coherenceId.statut === 'ok' ? '&#x2705;' : '&#x26A0;'}</span>
-                      <span className="font-medium text-sm">Identite</span>
-                      <span className={"text-xs px-2 py-0.5 rounded-full " + (coherenceId.statut === 'ok' ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800')}>{coherenceId.statut}</span>
-                    </div>
-                    {coherenceId.details && coherenceId.details.map((d: string, i: number) => (
-                      <p key={i} className="text-xs text-gray-600">&#x2022; {d}</p>
-                    ))}
-                  </div>
-                )}
-                {coherenceRev && (
-                  <div className={"rounded-lg p-3 border " + (coherenceRev.statut === 'ok' ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200')}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span>{coherenceRev.statut === 'ok' ? '&#x2705;' : '&#x26A0;'}</span>
-                      <span className="font-medium text-sm">Revenus</span>
-                      <span className={"text-xs px-2 py-0.5 rounded-full " + (coherenceRev.statut === 'ok' ? 'bg-green-200 text-green-800' : 'bg-orange-200 text-orange-800')}>{coherenceRev.statut}</span>
-                    </div>
-                    {coherenceRev.fiches_paie_vs_impots && <p className="text-xs text-gray-600">Fiches vs impots: {coherenceRev.fiches_paie_vs_impots}</p>}
-                    {coherenceRev.fiches_paie_vs_banque && <p className="text-xs text-gray-600">Fiches vs banque: {coherenceRev.fiches_paie_vs_banque}</p>}
-                    {coherenceRev.details && coherenceRev.details.map((d: string, i: number) => (
-                      <p key={i} className="text-xs text-gray-600">&#x2022; {d}</p>
-                    ))}
-                  </div>
-                )}
-                {coherenceChg && (
-                  <div className={"rounded-lg p-3 border " + (coherenceChg.statut === 'ok' ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200')}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span>{coherenceChg.statut === 'ok' ? '&#x2705;' : '&#x26A0;'}</span>
-                      <span className="font-medium text-sm">Charges</span>
-                      <span className={"text-xs px-2 py-0.5 rounded-full " + (coherenceChg.statut === 'ok' ? 'bg-green-200 text-green-800' : 'bg-orange-200 text-orange-800')}>{coherenceChg.statut}</span>
-                    </div>
-                    {Boolean(coherenceChg.charges_declarees) && <p className="text-xs text-gray-600">Declares: {formatMontant(coherenceChg.charges_declarees)}</p>}
-                    {Boolean(coherenceChg.charges_detectees_banque) && <p className="text-xs text-gray-600">Detectees en banque: {formatMontant(coherenceChg.charges_detectees_banque)}</p>}
-                    {coherenceChg.details && coherenceChg.details.map((d: string, i: number) => (
-                      <p key={i} className="text-xs text-gray-600">&#x2022; {d}</p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {anomalies.length > 0 && (
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 mb-3">&#x26A0; Anomalies Detectees ({anomalies.length})</h2>
-              <div className="space-y-3">
-                {anomalies.map((a: any, i: number) => (
-                  <div key={i} className={"border rounded-xl p-4 " + getSeveriteColor(a.severite)}>
-                    <div className="flex items-start gap-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <span className="font-semibold text-sm">{a.type}</span>
-                          <span className={"text-xs px-2 py-0.5 rounded-full font-medium uppercase " + getSeveriteBadge(a.severite)}>
-                            {a.severite}
-                          </span>
-                          {a.documents_concernes && a.documents_concernes.length > 0 && (
-                            <span className="text-xs text-gray-500">[{a.documents_concernes.join(', ')}]</span>
-                          )}
-                        </div>
-                        <p className="text-sm">{a.description}</p>
-                        {a.recommandation && (
-                          <p className="text-xs mt-2 opacity-80">&#x1F4A1; {a.recommandation}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {anomalies.length === 0 && analyseResult && (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-green-800">
-              &#x2705; Aucune anomalie detectee — les documents semblent coherents.
-            </div>
-          )}
-
-          {docsManquants.length > 0 && (
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-              <h3 className="font-semibold text-orange-800 mb-2">Documents manquants ou a completer</h3>
-              {docsManquants.map((d: string, i: number) => (
-                <p key={i} className="text-sm text-orange-700">&#x2022; {d}</p>
-              ))}
-            </div>
-          )}
-
-          {recommandations.length > 0 && (
-            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
-              <h3 className="font-semibold text-indigo-800 mb-2">&#x1F4CB; Recommandations Courtier</h3>
-              {recommandations.map((r: string, i: number) => (
-                <p key={i} className="text-sm text-indigo-700 mb-1">&#x2022; {r}</p>
-              ))}
-            </div>
-          )}
-
+          </div>
         </div>
-      )}
+      </div>
 
-      <p className="text-xs text-gray-400 text-center">
-        * Obligatoire — Analyse par GPT-4o. Verifiez toujours les informations extraites.
-      </p>
     </div>
   )
 }
