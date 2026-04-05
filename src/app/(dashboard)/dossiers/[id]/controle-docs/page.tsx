@@ -92,9 +92,9 @@ function analyserDocuments(dossier: Dossier | null, docs: Document[]): { control
   const typesPresents = docs.map(d => d.type_document || d.nom.toLowerCase())
 
   const typesRequis = [
-    { type: 'identite', label: 'Pièce d'identité', motsClefs: ['identite', 'cni', 'passeport'] },
+    { type: 'identite', label: 'Pièce d’identité', motsClefs: ['identite', 'cni', 'passeport'] },
     { type: 'domicile', label: 'Justificatif de domicile', motsClefs: ['domicile', 'facture', 'quittance'] },
-    { type: 'imposition', label: 'Avis d'imposition', motsClefs: ['imposition', 'impot', 'fiscal'] },
+    { type: 'imposition', label: 'Avis d’imposition', motsClefs: ['imposition', 'impot', 'fiscal'] },
     { type: 'salaire', label: 'Bulletins de salaire', motsClefs: ['salaire', 'bulletin', 'fiche de paie'] },
     { type: 'bancaire', label: 'Relevés bancaires', motsClefs: ['bancaire', 'releve', 'compte'] },
   ]
@@ -120,11 +120,11 @@ function analyserDocuments(dossier: Dossier | null, docs: Document[]): { control
 
   if ((dossier.taux_endettement || 0) > 0) {
     if ((dossier.taux_endettement || 0) > 40) {
-      croisements.push({ niveau: 'alerte', titre: 'Taux d'endettement élevé', detail: 'Le taux de ' + dossier.taux_endettement + '% dépasse le seuil bancaire standard de 35%. Élément à vérifier et argumenter.', source: 'Analyse financière' })
+      croisements.push({ niveau: 'alerte', titre: 'Taux d’endettement élevé', detail: 'Le taux de ' + dossier.taux_endettement + '% dépasse le seuil bancaire standard de 35%. Élément à vérifier et argumenter.', source: 'Analyse financière' })
     } else if ((dossier.taux_endettement || 0) > 33) {
-      croisements.push({ niveau: 'vigilance', titre: 'Taux d'endettement en limite', detail: 'Le taux de ' + dossier.taux_endettement + '% est proche du seuil. Un examen attentif est recommandé.', source: 'Analyse financière' })
+      croisements.push({ niveau: 'vigilance', titre: 'Taux d’endettement en limite', detail: 'Le taux de ' + dossier.taux_endettement + '% est proche du seuil. Un examen attentif est recommandé.', source: 'Analyse financière' })
     } else {
-      croisements.push({ niveau: 'ok', titre: 'Taux d'endettement cohérent', detail: 'Le taux de ' + dossier.taux_endettement + '% est dans les normes bancaires.', source: 'Analyse financière' })
+      croisements.push({ niveau: 'ok', titre: 'Taux d’endettement cohérent', detail: 'Le taux de ' + dossier.taux_endettement + '% est dans les normes bancaires.', source: 'Analyse financière' })
     }
   }
 
@@ -362,8 +362,8 @@ export default function ControleDocsPage() {
           <div>
             <div style={{ fontSize: '13px', fontWeight: 700, color: '#1d4ed8', marginBottom: '6px' }}>Note importante — Vocabulaire prudent</div>
             <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-              Les contrôles effectués par CortIA sont des signaux de vigilance automatiques. Toute incohérence potentielle ou anomalie documentaire doit faire l'objet d'une revue humaine avant conclusion.
-              Ce système ne constitue pas une vérification juridique et ne peut en aucun cas attester de la conformité ou de la fraude d'un document.
+              Les contrôles effectués par CortIA sont des signaux de vigilance automatiques. Toute incohérence potentielle ou anomalie documentaire doit faire l’objet d’une revue humaine avant conclusion.
+              Ce système ne constitue pas une vérification juridique et ne peut en aucun cas attester de la conformité ou de la fraude d’un document.
             </div>
           </div>
         </div>
