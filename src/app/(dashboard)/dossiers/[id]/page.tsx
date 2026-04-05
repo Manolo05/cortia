@@ -190,19 +190,32 @@ export default function DossierDetailPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const { data } = await supabase
+        // Load dossier with safe joins (skip missing relationships)
+        const { data: base } = await supabase
           .from('dossiers')
-          .select(`
-            *,
-            emprunteurs(*),
-            projet:projets(*),
-            analyses_financieres(*),
-            documents(id, type_document, nom_fichier, statut_verification),
-            controles_docs(id, type_controle, resultat, niveau_alerte, details)
-          `)
+          .select('*')
           .eq('id', id)
           .single()
-        setDossier(data)
+
+        if (!base) { setDossier(null); return }
+
+        // Load related data separately to avoid join failures
+        const [empRes, analyseRes, docsRes, projetRes, controlesRes] = await Promise.all([
+          supabase.from('emprunteurs').select('*').eq('dossier_id', id),
+          supabase.from('analyses_financieres').select('*').eq('dossier_id', id),
+          supabase.from('documents').select('id, type_document, nom_fichier, statut_verification').eq('dossier_id', id),
+          supabase.from('projets').select('*').eq('dossier_id', id),
+          supabase.from('controles_docs').select('id, type_controle, resultat, niveau_alerte, details').eq('dossier_id', id).then(r => r).catch(() => ({ data: [] })),
+        ])
+
+        setDossier({
+          ...base,
+          emprunteurs: empRes.data || [],
+          projet: projetRes.data || [],
+          analyses_financieres: analyseRes.data || [],
+          documents: docsRes.data || [],
+          controles_docs: controlesRes.data || [],
+        })
       } catch (err) {
         console.error('Dossier load error:', err)
       } finally {
