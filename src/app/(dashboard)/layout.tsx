@@ -33,7 +33,7 @@ async function ensureUserSetup(supabase: any, user: any) {
         })
     }
   } catch (e) {
-    // Silent fail - setup errors shouldn't block the dashboard
+    // Silent fail
   }
 }
 
@@ -52,9 +52,9 @@ export default async function DashboardLayout({
   await ensureUserSetup(supabase, user)
 
   return (
-    <div className="app-shell">
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-app)' }}>
       <Sidebar />
-      <main className="main-content">
+      <main style={{ flex: 1, marginLeft: '220px', overflowY: 'auto', overflowX: 'hidden', minHeight: '100vh', background: 'var(--bg-app)' }}>
         {children}
       </main>
     </div>
