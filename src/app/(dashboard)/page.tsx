@@ -265,18 +265,87 @@ export default function DashboardPage() {
           setUserName(profil.nom_complet || '')
         }
 
-        const { data } = await supabase
+                const { data: rawDossiers } = await supabase
           .from('dossiers')
-          .select(`
-            *,
-            emprunteurs(prenom, nom, salaire_net_mensuel, type_contrat),
-            analyses_financieres(score_global, taux_endettement_projet, reste_a_vivre, taux_apport, points_forts, points_vigilance, recommandations, mensualite_estimee),
-            documents(id, type_document, statut_verification),
-            controles_docs(id, type_controle, resultat, niveau_alerte)
-          `)
+          .select('id, reference, statut, notes, updated_at, created_at')
           .order('updated_at', { ascending: false })
 
-        setDossiers(data || [])
+        if (!rawDossiers || rawDossiers.length === 0) {
+          setDossiers([])
+          setLoading(false)
+          return
+        }
+
+        const ids = rawDossiers.map((d: any) => d.id)
+
+        const [empRes, projRes, anaRes, docRes] = await Promise.all([
+          supabase.from('emprunteurs').select('dossier_id, prenom, nom, salaire_net_mensuel, type_contrat, est_co_emprunteur').in('dossier_id', ids),
+          supabase.from('projets').select('dossier_id, prix_bien, montant_emprunt').in('dossier_id', ids),
+          supabase.from('analyses_financieres').select('dossier_id, score_global, taux_endettement_projet, reste_a_vivre, taux_apport, points_forts, points_vigilance, recommandations, mensualite_estimee').in('dossier_id', ids),
+          supabase.from('documents').select('id, dossier_id, type_document, statut_verification').in('dossier_id', ids),
+        ])
+
+        // Build maps
+        const empByDossier = new Map<string, any[]>()
+        ;(empRes.data || []).forEach((e: any) => {
+          const arr = empByDossier.get(e.dossier_id) || []
+          arr.push(e)
+          empByDossier.set(e.dossier_id, arr)
+        })
+
+        const projByDossier = new Map<string, any>()
+        ;(projRes.data || []).forEach((p: any) => projByDossier.set(p.dossier_id, p))
+
+        const anaByDossier = new Map<string, any>()
+        ;(anaRes.data || []).forEach((a: any) => anaByDossier.set(a.dossier_id, a))
+
+        const docsByDossier = new Map<string, any[]>()
+        ;(docRes.data || []).forEach((doc: any) => {
+          const arr = docsByDossier.get(doc.dossier_id) || []
+          arr.push(doc)
+          docsByDossier.set(doc.dossier_id, arr)
+        })
+
+        const enriched = rawDossiers.map((d: any) => {
+          const emps = empByDossier.get(d.id) || []
+          const mainEmp = emps.find((e: any) => !e.est_co_emprunteur) || emps[0]
+          const proj = projByDossier.get(d.id)
+          const ana = anaByDossier.get(d.id)
+          const docs = docsByDossier.get(d.id) || []
+
+          return {
+            ...d,
+            nom_client: mainEmp ? (mainEmp.prenom + ' ' + mainEmp.nom) : '',
+            score_global: ana?.score_global || 0,
+            montant_projet: proj?.prix_bien || 0,
+            taux_endettement: ana?.taux_endettement_projet || 0,
+            niveau_risque: ana?.score_global ? (ana.score_global >= 75 ? 'faible' : ana.score_global >= 55 ? 'moyen' : 'eleve') : undefined,
+            emprunteurs: emps.map((e: any) => ({
+              prenom: e.prenom,
+              nom: e.nom,
+              salaire_net_mensuel: e.salaire_net_mensuel,
+              type_contrat: e.type_contrat,
+            })),
+            analyses_financieres: ana ? [{
+              score_global: ana.score_global,
+              taux_endettement_projet: ana.taux_endettement_projet,
+              reste_a_vivre: ana.reste_a_vivre,
+              taux_apport: ana.taux_apport,
+              points_forts: ana.points_forts,
+              points_vigilance: ana.points_vigilance,
+              recommandations: ana.recommandations,
+              mensualite_estimee: ana.mensualite_estimee,
+            }] : [],
+            documents: docs.map((doc: any) => ({
+              id: doc.id,
+              type_document: doc.type_document,
+              statut_verification: doc.statut_verification,
+            })),
+            controles_docs: [],
+          }
+        })
+
+        setDossiers(enriched)
       } catch (e) {
         console.error('Dashboard load error:', e)
       } finally {
