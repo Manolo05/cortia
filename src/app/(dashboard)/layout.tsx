@@ -49,13 +49,12 @@ export default async function DashboardLayout({
     redirect('/login')
   }
 
-  // Auto-provision cabinet and profil if not yet created
   await ensureUserSetup(supabase, user)
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="app-shell">
       <Sidebar />
-      <main className="flex-1 overflow-auto">
+      <main className="main-content">
         {children}
       </main>
     </div>
