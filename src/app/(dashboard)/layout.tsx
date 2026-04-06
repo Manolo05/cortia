@@ -1,6 +1,5 @@
 import { Sidebar } from '@/components/layout/sidebar'
 import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
 
 async function ensureUserSetup(supabase: any, user: any) {
   try {
@@ -45,11 +44,10 @@ export default async function DashboardLayout({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) {
-    redirect('/login')
+  // If user is logged in, ensure setup - but don’t block if not
+  if (user) {
+    await ensureUserSetup(supabase, user)
   }
-
-  await ensureUserSetup(supabase, user)
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-app)' }}>
