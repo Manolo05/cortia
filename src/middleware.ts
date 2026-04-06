@@ -29,40 +29,15 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Refresh session if exists (but don’t block if no user)
+  await supabase.auth.getUser()
 
-  const { pathname } = request.nextUrl
-
-  // Routes publiques
-  const publicRoutes = ['/login', '/register']
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
-  
-  // Routes API externes (pas de protection auth)
-  const isApiExtRoute = pathname.startsWith('/api/ext')
-  
-  if (isApiExtRoute) {
-    return supabaseResponse
-  }
-
-  if (!user && !isPublicRoute) {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/login'
-    return NextResponse.redirect(redirectUrl)
-  }
-
-  if (user && isPublicRoute) {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/'
-    return NextResponse.redirect(redirectUrl)
-  }
-
+  // Allow all routes - no auth redirect
   return supabaseResponse
 }
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
