@@ -44,15 +44,14 @@ export default async function DashboardLayout({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // If user is logged in, ensure setup - but don’t block if not
   if (user) {
     await ensureUserSetup(supabase, user)
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-app)' }}>
+    <div style={{ display: 'flex', height: '100vh', background: 'var(--bg-app)' }}>
       <Sidebar />
-      <main style={{ flex: 1, marginLeft: '220px', overflowY: 'auto', overflowX: 'hidden', minHeight: '100vh', background: 'var(--bg-app)' }}>
+      <main style={{ flex: 1, marginLeft: '220px', overflowY: 'auto', overflowX: 'hidden', height: '100vh', background: 'var(--bg-app)' }}>
         {children}
       </main>
     </div>
