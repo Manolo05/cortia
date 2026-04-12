@@ -84,10 +84,10 @@ export default function AnalysePage() {
   async function loadData() {
     setLoading(true)
     try {
-      const res = await fetch('/api/dossiers/' + dossierId + '/analyses')
+      const res = await fetch('/api/dossiers/' + dossierId + '/analyses', { method: 'POST' })
       if (res.ok) {
         const data = await res.json()
-        if (data && !data.error) setAnalyse(data)
+        if (data && data.score_global !== undefined) setAnalyse(data)
       }
     } catch (e) { console.error('Load analyse error:', e) }
     setLoading(false)
@@ -99,7 +99,7 @@ export default function AnalysePage() {
       const res = await fetch('/api/dossiers/' + dossierId + '/analyses', { method: 'POST' })
       if (res.ok) {
         const data = await res.json()
-        if (data && !data.error) setAnalyse(data)
+        if (data && data.score_global !== undefined) setAnalyse(data)
       }
     } catch (e) { console.error('Recalcul error:', e) }
     setRecalculating(false)
@@ -180,7 +180,7 @@ export default function AnalysePage() {
             { icon: 'MEN', label: 'Mensualite estimee', val: analyse.mensualite_estimee ? analyse.mensualite_estimee.toLocaleString('fr-FR') + ' EUR/mois' : '-' },
             { icon: 'PCT', label: 'Taux d\'endettement', val: analyse.taux_endettement ? analyse.taux_endettement.toFixed(1) + '%' : '-', highlight: analyse.taux_endettement ? (analyse.taux_endettement > 35 ? 'alert' : 'ok') : undefined },
             { icon: 'RAV', label: 'Reste a vivre', val: analyse.reste_a_vivre ? analyse.reste_a_vivre.toLocaleString('fr-FR') + ' EUR/mois' : '-', highlight: analyse.reste_a_vivre ? (analyse.reste_a_vivre < 1200 ? 'alert' : 'ok') : undefined },
-            { icon: 'APT', label: 'Ratio apport', val: analyse.ratio_apport ? analyse.ratio_apport.toFixed(1) + '%' : '-', highlight: analyse.ratio_apport ? (analyse.ratio_apport < 10 ? 'alert' : 'ok') : undefined },
+            { icon: 'APT', label: 'Ratio apport', val: analyse.ratio_apport !== undefined ? analyse.ratio_apport.toFixed(1) + '%' : '-', highlight: analyse.ratio_apport !== undefined ? (analyse.ratio_apport < 10 ? 'alert' : 'ok') : undefined },
             { icon: 'SAU', label: 'Saut de charge', val: analyse.saut_de_charge ? analyse.saut_de_charge.toLocaleString('fr-FR') + ' EUR/mois' : '-' },
           ].map(row => (
             <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--gray-50)' }}>
