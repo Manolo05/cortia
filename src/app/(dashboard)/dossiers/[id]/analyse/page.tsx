@@ -1,58 +1,49 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { useParams } from 'next/navigation';
+import { useState, useEffect } from 'react'
+import { useParams } from 'next/navigation'
 
 interface AnalyseData {
-  revenus_retenus?: number;
-  cout_total_projet?: number;
-  besoin_financement?: number;
-  mensualite_estimee?: number;
-  taux_endettement?: number;
-  reste_a_vivre?: number;
-  reste_a_vivre_uc?: number;
-  ratio_apport?: number;
-  saut_de_charge?: number;
-  score_global?: number;
-  score_stabilite?: number;
-  score_endettement?: number;
-  score_patrimoine?: number;
-  score_reste_a_vivre?: number;
-  score_charge?: number;
-  points_forts?: string[];
-  points_vigilance?: string[];
-  lecture_metier?: string;
-  dossier_id?: string;
-}
-
-interface Dossier {
-  id: string;
-  nom_emprunteur?: string;
-  statut?: string;
-  type_pret?: string;
-  montant?: number;
+  revenus_retenus?: number
+  cout_total_projet?: number
+  besoin_financement?: number
+  mensualite_estimee?: number
+  taux_endettement?: number
+  reste_a_vivre?: number
+  reste_a_vivre_uc?: number
+  ratio_apport?: number
+  saut_de_charge?: number
+  score_global?: number
+  score_stabilite?: number
+  score_endettement?: number
+  score_patrimoine?: number
+  score_reste_a_vivre?: number
+  score_charge?: number
+  points_forts?: string[]
+  points_vigilance?: string[]
+  lecture_metier?: string
+  dossier_id?: string
 }
 
 function ScoreRing({ score, size = 80 }: { score: number; size?: number }) {
-  const r = (size / 2) - 8;
-  const circ = 2 * Math.PI * r;
-  const offset = circ - (score / 100) * circ;
-  const color = score >= 75 ? '#059669' : score >= 50 ? '#F59E0B' : '#EF4444';
+  const r = (size / 2) - 8
+  const circ = 2 * Math.PI * r
+  const offset = circ - (score / 100) * circ
+  const color = score >= 75 ? '#059669' : score >= 50 ? '#F59E0B' : '#EF4444'
   return (
     <svg width={size} height={size} viewBox={'0 0 ' + size + ' ' + size}>
       <circle cx={size/2} cy={size/2} r={r} fill='none' stroke='#E2E8F0' strokeWidth='7' />
       <circle cx={size/2} cy={size/2} r={r} fill='none' stroke={color} strokeWidth='7'
-        strokeDasharray={circ} strokeDashoffset={offset}
-        strokeLinecap='round' transform={'rotate(-90 ' + (size/2) + ' ' + (size/2) + ')'} />
+        strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap='round'
+        transform={'rotate(-90 ' + (size/2) + ' ' + (size/2) + ')'} />
       <text x='50%' y='50%' dominantBaseline='middle' textAnchor='middle'
         style={{ fontSize: size * 0.22 + 'px', fontWeight: 700, fill: color }}>{score}</text>
     </svg>
-  );
+  )
 }
 
 function ScoreBar({ label, score }: { label: string; score: number }) {
-  const color = score >= 75 ? '#059669' : score >= 50 ? '#F59E0B' : '#EF4444';
+  const color = score >= 75 ? '#059669' : score >= 50 ? '#F59E0B' : '#EF4444'
   return (
     <div style={{ marginBottom: '12px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
@@ -63,7 +54,7 @@ function ScoreBar({ label, score }: { label: string; score: number }) {
         <div style={{ height: '100%', width: score + '%', background: color, borderRadius: '99px', transition: 'width 0.6s ease' }}></div>
       </div>
     </div>
-  );
+  )
 }
 
 function getBankabilityConfig(score: number) {
@@ -72,7 +63,7 @@ function getBankabilityConfig(score: number) {
   return { label: 'Non', sublabel: 'Dossier a consolider', color: '#DC2626', bg: '#FEF2F2', border: '#FECACA', desc: 'Le dossier presente des fragilites significatives qui necessitent une consolidation avant tout depot. Une analyse approfondie est recommandee.' }
 }
 
-function getBankTargets(score: number, taux?: number) {
+function getBankTargets(score: number) {
   if (score >= 80) return ['Credit Agricole', 'BNP Paribas', 'Societe Generale', 'CIC', 'LCL']
   if (score >= 65) return ['Credit Mutuel', 'Caisse d\'Epargne', 'Banque Populaire', 'La Banque Postale']
   if (score >= 50) return ['Boursorama Banque', 'Hello Bank', 'Fortuneo']
@@ -80,47 +71,50 @@ function getBankTargets(score: number, taux?: number) {
 }
 
 export default function AnalysePage() {
-  const params = useParams();
-  const dossierId = params.id as string;
-  const supabase = createClient();
-  const [analyse, setAnalyse] = useState<AnalyseData | null>(null);
-  const [dossier, setDossier] = useState<Dossier | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [recalculating, setRecalculating] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const params = useParams()
+  const dossierId = params.id as string
+  const [analyse, setAnalyse] = useState<AnalyseData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [recalculating, setRecalculating] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
 
-  useEffect(() => { loadData() }, [dossierId]);
+  useEffect(() => { loadData() }, [dossierId])
 
   async function loadData() {
-    setLoading(true);
-    const [dossierRes, analyseRes] = await Promise.all([
-      supabase.from('dossiers').select('*').eq('id', dossierId).single(),
-      supabase.from('analyses_financieres').select('*').eq('dossier_id', dossierId).order('created_at', { ascending: false }).limit(1).single()
-    ]);
-    if (dossierRes.data) setDossier(dossierRes.data);
-    if (analyseRes.data) setAnalyse(analyseRes.data);
-    setLoading(false);
+    setLoading(true)
+    try {
+      const res = await fetch('/api/dossiers/' + dossierId + '/analyses')
+      if (res.ok) {
+        const data = await res.json()
+        if (data && !data.error) setAnalyse(data)
+      }
+    } catch (e) { console.error('Load analyse error:', e) }
+    setLoading(false)
   }
 
   async function recalculer() {
-    setRecalculating(true);
+    setRecalculating(true)
     try {
-      const res = await fetch('/api/dossiers/' + dossierId + '/analyses', { method: 'POST' });
-      if (res.ok) { const data = await res.json(); setAnalyse(data); }
-    } catch (e) {}
-    setRecalculating(false);
+      const res = await fetch('/api/dossiers/' + dossierId + '/analyses', { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        if (data && !data.error) setAnalyse(data)
+      }
+    } catch (e) { console.error('Recalcul error:', e) }
+    setRecalculating(false)
   }
 
   async function enregistrer() {
-    setSaving(true);
-    await new Promise(r => setTimeout(r, 800));
-    setSaved(true);
-    setSaving(false);
-    setTimeout(() => setSaved(false), 3000);
+    setSaving(true)
+    await new Promise(r => setTimeout(r, 800))
+    setSaved(true)
+    setSaving(false)
+    setTimeout(() => setSaved(false), 3000)
   }
 
-  if (loading) return <div className='loading-container'><div className='loading-spinner'></div><p>{"Chargement de l'analyse..."}</p></div>;
+  if (loading) return <div className='loading-container'><div className='loading-spinner'></div><p>{"Chargement de l'analyse..."}</p></div>
+
   if (!analyse) return (
     <div className='empty-state'>
       <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'var(--gray-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontWeight: 700, fontSize: '10px', color: 'var(--gray-400)', letterSpacing: '0.1em' }}>IA</div>
@@ -130,17 +124,15 @@ export default function AnalysePage() {
         {recalculating ? 'Analyse en cours...' : 'Lancer l\'analyse IA'}
       </button>
     </div>
-  );
+  )
 
-  const score = analyse.score_global || 0;
-  const bconf = getBankabilityConfig(score);
-  const bankTargets = getBankTargets(score, analyse.taux_endettement);
-  const scoreLabel = score >= 75 ? 'Dossier solide' : score >= 50 ? 'Dossier correct' : 'Dossier fragile';
+  const score = analyse.score_global || 0
+  const bconf = getBankabilityConfig(score)
+  const bankTargets = getBankTargets(score)
+  const scoreLabel = score >= 75 ? 'Dossier solide' : score >= 50 ? 'Dossier correct' : 'Dossier fragile'
 
   return (
     <div className='page-container'>
-
-      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div>
           <h2 className='page-title'>Analyse financiere IA</h2>
@@ -156,7 +148,6 @@ export default function AnalysePage() {
         </div>
       </div>
 
-      {/* Score global + ratios */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
         <div className='card' style={{ padding: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px' }}>
@@ -179,6 +170,7 @@ export default function AnalysePage() {
             <ScoreBar label='Niveau de charge' score={analyse.score_charge || 0} />
           </div>
         </div>
+
         <div className='card' style={{ padding: '24px' }}>
           <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '16px' }}>Ratios financiers</div>
           {[
@@ -204,7 +196,6 @@ export default function AnalysePage() {
         </div>
       </div>
 
-      {/* Bankabilite verdict */}
       <div className='card' style={{ marginBottom: '16px', borderLeft: '4px solid ' + bconf.border, background: bconf.bg, padding: '20px 24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ textAlign: 'center', minWidth: '80px' }}>
@@ -230,7 +221,6 @@ export default function AnalysePage() {
         </div>
       </div>
 
-      {/* Points forts + vigilance */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
         <div className='card' style={{ padding: '20px' }}>
           <div style={{ fontSize: '13px', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Points forts</div>
@@ -264,7 +254,6 @@ export default function AnalysePage() {
         </div>
       </div>
 
-      {/* Lecture metier */}
       {analyse.lecture_metier && (
         <div className='card' style={{ padding: '20px' }}>
           <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px' }}>Lecture metier CortIA</div>
@@ -273,7 +262,6 @@ export default function AnalysePage() {
           </p>
         </div>
       )}
-
     </div>
-  );
+  )
 }
