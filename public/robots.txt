@@ -1,0 +1,11 @@
+# CortIA - robots.txt
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /dossiers/
+Disallow: /login
+Disallow: /register
+
+# Sitemap
+Sitemap: https://cortia-kappa.vercel.app/sitemap.xml
