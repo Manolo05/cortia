@@ -1,8 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'next/navigation'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-
 interface Document {
   id: string
   dossier_id: string
@@ -48,8 +46,7 @@ function formatTaille(bytes?: number) {
 export default function DocumentsPage() {
   const params = useParams()
   const dossierId = params.id as string
-  const supabase = createClientComponentClient()
-  const [documents, setDocuments] = useState<Document[]>([])
+const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [showForm, setShowForm] = useState(false)
@@ -71,17 +68,21 @@ export default function DocumentsPage() {
     setUploading(true)
     setError(null)
     try {
-      const fileName = dossierId + '/' + Date.now() + '_' + file.name
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(fileName, file, { upsert: false })
-      const url = uploadError ? undefined : supabase.storage.from('documents').getPublicUrl(fileName).data.publicUrl
-      const payload = { dossier_id: dossierId, nom: formData.nom || file.name, type: formData.type, statut: formData.statut, url, taille: file.size }
-      const res = await fetch('/api/dossiers/' + dossierId + '/documents', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('nom', formData.nom || file.name)
+      fd.append('type', formData.type)
+      fd.append('statut', formData.statut)
+      const res = await fetch('/api/dossiers/' + dossierId + '/upload', {
+        method: 'POST',
+        body: fd
       })
-      if (res.ok) { await fetchDocuments(); setFormData({ nom: '', type: 'fiche_paie', statut: 'en_attente' }); setShowForm(false) }
-      else { setError('Erreur lors de l\'enregistrement.') }
+      if (res.ok) {
+        await fetchDocuments(); setFormData({ nom: '', type: 'fiche_paie', statut: 'en_attente' }); setShowForm(false)
+      } else {
+        const err = await res.json()
+        setError(err.error || 'Erreur lors du telechargement.')
+      }
     } catch (err) { setError('Erreur lors du traitement.') }
     setUploading(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
