@@ -8,15 +8,16 @@ const supabase = createClient(
 
 function clamp(v: number, min = 0, max = 100) { return Math.max(min, Math.min(max, Math.round(v))) }
 
-function computeScoring(dossier: any) {
-  const revenus = dossier.revenus_mensuels || dossier.montant_revenus || 3500
-  const charges = dossier.charges_mensuelles || dossier.montant_charges || 800
-  const montant = dossier.montant || dossier.montant_projet || 250000
-  const apport = dossier.apport || dossier.montant_apport || 0
+function computeScoring(dossier: any, projet: any, emprunteur: any) {
+  // Lire depuis dossier OU projet OU valeurs par défaut
+  const montant = dossier.montant || projet?.prix_bien || dossier.montant_projet || 250000
+  const apport = dossier.apport || dossier.montant_apport || projet?.apport || 0
   const duree = dossier.duree_mois || dossier.duree_pret || 240
-  const loyer = dossier.loyer_actuel || 900
-  const cdi = dossier.type_contrat === 'CDI' || dossier.situation_pro === 'CDI' || true
-  const anciennete = dossier.anciennete_mois || dossier.anciennete || 36
+  const revenus = dossier.revenus_mensuels || dossier.montant_revenus || emprunteur?.revenus || 3500
+  const charges = dossier.charges_mensuelles || dossier.montant_charges || emprunteur?.charges || 800
+  const loyer = dossier.loyer_actuel || emprunteur?.loyer || 900
+  const cdi = dossier.type_contrat === 'CDI' || dossier.situation_pro === 'CDI' || emprunteur?.type_contrat === 'CDI' || true
+  const anciennete = dossier.anciennete_mois || dossier.anciennete || emprunteur?.anciennete_mois || 36
 
   const taux_annuel = 0.035
   const taux_mensuel = taux_annuel / 12
@@ -28,14 +29,12 @@ function computeScoring(dossier: any) {
   const saut_de_charge = mensualite - loyer
   const rav_uc = reste_a_vivre * 0.7
 
-  // 1. Stabilite professionnelle (15%)
   let score_stabilite = 50
   if (cdi) score_stabilite += 30
   if (anciennete >= 36) score_stabilite += 20
   else if (anciennete >= 12) score_stabilite += 10
   score_stabilite = clamp(score_stabilite)
 
-  // 2. Taux endettement (30%) - seuil HCSF 35%
   let score_endettement = 100
   if (taux_endettement > 45) score_endettement = 10
   else if (taux_endettement > 40) score_endettement = 25
@@ -45,7 +44,6 @@ function computeScoring(dossier: any) {
   else score_endettement = 95
   score_endettement = clamp(score_endettement)
 
-  // 3. Patrimoine (20%)
   let score_patrimoine = 30
   if (ratio_apport >= 20) score_patrimoine = 95
   else if (ratio_apport >= 15) score_patrimoine = 80
@@ -53,7 +51,6 @@ function computeScoring(dossier: any) {
   else if (ratio_apport >= 5) score_patrimoine = 50
   score_patrimoine = clamp(score_patrimoine)
 
-  // 4. Reste a vivre (20%)
   let score_rav = 50
   if (reste_a_vivre >= 2000) score_rav = 95
   else if (reste_a_vivre >= 1500) score_rav = 80
@@ -62,7 +59,6 @@ function computeScoring(dossier: any) {
   else score_rav = 20
   score_rav = clamp(score_rav)
 
-  // 5. Saut de charge (15%)
   let score_charge = 70
   if (saut_de_charge <= 0) score_charge = 95
   else if (saut_de_charge <= 200) score_charge = 80
@@ -75,24 +71,24 @@ function computeScoring(dossier: any) {
   )
 
   const points_forts: string[] = []
-  if (cdi && anciennete >= 24) points_forts.push('Emploi stable en CDI avec ' + Math.round(anciennete/12) + ' ans d\'anciennete')
-  if (taux_endettement <= 33) points_forts.push('Taux d\'endettement maitrise a ' + taux_endettement.toFixed(1) + '% (seuil HCSF: 35%)')
+  if (cdi && anciennete >= 24) points_forts.push('Emploi stable en CDI avec ' + Math.round(anciennete/12) + ' ans d\'ancienneté')
+  if (taux_endettement <= 33) points_forts.push('Taux d\'endettement maîtrisé à ' + taux_endettement.toFixed(1) + '% (seuil HCSF : 35%)')
   if (ratio_apport >= 10) points_forts.push('Apport personnel solide de ' + ratio_apport.toFixed(0) + '% du projet')
-  if (reste_a_vivre >= 1500) points_forts.push('Reste a vivre confortable de ' + Math.round(reste_a_vivre) + ' EUR/mois')
-  if (saut_de_charge <= 0) points_forts.push('Pas de saut de charge : mensualite inferieure au loyer actuel')
+  if (reste_a_vivre >= 1500) points_forts.push('Reste à vivre confortable de ' + Math.round(reste_a_vivre) + ' €/mois')
+  if (saut_de_charge <= 0) points_forts.push('Pas de saut de charge : mensualité inférieure au loyer actuel')
   if (points_forts.length === 0) points_forts.push('Dossier en cours d\'analyse approfondie')
 
   const points_vigilance: string[] = []
-  if (taux_endettement > 35) points_vigilance.push('Taux d\'endettement de ' + taux_endettement.toFixed(1) + '% depasse le seuil HCSF de 35%')
-  if (ratio_apport < 10) points_vigilance.push('Apport faible (' + ratio_apport.toFixed(0) + '%) - risque de refus sans garanties complementaires')
-  if (reste_a_vivre < 1200) points_vigilance.push('Reste a vivre insuffisant (' + Math.round(reste_a_vivre) + ' EUR) - seuil recommande 1200 EUR')
-  if (saut_de_charge > 500) points_vigilance.push('Saut de charge important de ' + Math.round(saut_de_charge) + ' EUR/mois')
-  if (anciennete < 12) points_vigilance.push('Anciennete professionnelle insuffisante (moins de 12 mois)')
+  if (taux_endettement > 35) points_vigilance.push('Taux d\'endettement de ' + taux_endettement.toFixed(1) + '% dépasse le seuil HCSF de 35%')
+  if (ratio_apport < 10) points_vigilance.push('Apport faible (' + ratio_apport.toFixed(0) + '%) — risque de refus sans garanties complémentaires')
+  if (reste_a_vivre < 1200) points_vigilance.push('Reste à vivre insuffisant (' + Math.round(reste_a_vivre) + ' €) — seuil recommandé 1 200 €')
+  if (saut_de_charge > 500) points_vigilance.push('Saut de charge important de ' + Math.round(saut_de_charge) + ' €/mois')
+  if (anciennete < 12) points_vigilance.push('Ancienneté professionnelle insuffisante (moins de 12 mois)')
 
-  let lecture = 'Dossier analyse par le moteur CortIA. '
-  if (score_global >= 75) lecture += 'Le profil emprunteur presente des indicateurs solides avec un taux d\'endettement maitrise et un patrimoine adequat. Ce dossier peut etre presente aux grandes banques de detail avec confiance. Recommandation : prioriser les banques mutualistes pour obtenir les meilleures conditions.'
-  else if (score_global >= 50) lecture += 'Le dossier est globalement acceptable mais presente des axes d\'amelioration. Il est conseille de travailler sur le renforcement de l\'apport ou la reduction des charges avant la presentation en banque. Les banques en ligne peuvent offrir plus de flexibilite sur ce type de profil.'
-  else lecture += 'Le dossier necessite une consolidation significative avant presentation. Les principaux leviers sont l\'augmentation de l\'apport, la reduction du montant emprunte ou l\'allongement de la duree. Un co-emprunteur pourrait egalement renforcer le dossier.'
+  let lecture = 'Dossier analysé par le moteur CortIA. '
+  if (score_global >= 75) lecture += 'Le profil emprunteur présente des indicateurs solides avec un taux d\'endettement maîtrisé et un patrimoine adéquat. Ce dossier peut être présenté aux grandes banques de détail avec confiance. Recommandation : prioriser les banques mutualistes pour obtenir les meilleures conditions.'
+  else if (score_global >= 50) lecture += 'Le dossier est globalement acceptable mais présente des axes d\'amélioration. Il est conseillé de travailler sur le renforcement de l\'apport ou la réduction des charges avant la présentation en banque. Les banques en ligne peuvent offrir plus de flexibilité sur ce type de profil.'
+  else lecture += 'Le dossier nécessite une consolidation significative avant présentation. Les principaux leviers sont l\'augmentation de l\'apport, la réduction du montant emprunté ou l\'allongement de la durée. Un co-emprunteur pourrait également renforcer le dossier.'
 
   return {
     dossier_id: dossier.id, revenus_retenus: Math.round(revenus), cout_total_projet: Math.round(montant),
@@ -106,17 +102,15 @@ function computeScoring(dossier: any) {
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { data: dossier, error: dErr } = await supabase.from('dossiers').select('*').eq('id', params.id).single()
-    if (dErr || !dossier) return NextResponse.json({ error: 'Dossier non trouve' }, { status: 404 })
-    const scoring = computeScoring(dossier)
-    try {
-      const { data } = await supabase.from('analyses_financieres').upsert(scoring, { onConflict: 'dossier_id' }).select().single()
-      if (data) return NextResponse.json(data)
-    } catch {}
-    try {
-      const { data } = await supabase.from('analyses_financieres').insert(scoring).select().single()
-      if (data) return NextResponse.json(data)
-    } catch {}
+    const { data: dossier, error: dErr } = await supabase.from('dossiers').select('*, emprunteurs(*), projets(*)').eq('id', params.id).single()
+    if (dErr || !dossier) return NextResponse.json({ error: 'Dossier non trouvé' }, { status: 404 })
+    
+    const projet = Array.isArray(dossier.projets) ? dossier.projets[0] : dossier.projets
+    const emprunteur = Array.isArray(dossier.emprunteurs) ? dossier.emprunteurs[0] : dossier.emprunteurs
+    const scoring = computeScoring(dossier, projet, emprunteur)
+    
+    try { const { data } = await supabase.from('analyses_financieres').upsert(scoring, { onConflict: 'dossier_id' }).select().single(); if (data) return NextResponse.json(data) } catch {}
+    try { const { data } = await supabase.from('analyses_financieres').insert(scoring).select().single(); if (data) return NextResponse.json(data) } catch {}
     return NextResponse.json(scoring)
   } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }) }
 }
