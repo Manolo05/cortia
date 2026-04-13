@@ -6,11 +6,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
+// Only use columns that exist in the emprunteurs table
 const empFinancials: Record<string, any> = {
-  'Sophie Martin': { salaire_net_mensuel: 5200, type_contrat: 'CDI', anciennete_mois: 60, autres_revenus: 0, credits_en_cours: 0, epargne: 52000 },
-  'Pierre Dubois': { salaire_net_mensuel: 4100, type_contrat: 'CDI', anciennete_mois: 84, autres_revenus: 300, revenus_locatifs: 0, credits_en_cours: 250, epargne: 45000 },
-  'Claire Renault': { salaire_net_mensuel: 7500, type_contrat: 'CDI', anciennete_mois: 120, autres_revenus: 500, revenus_locatifs: 800, credits_en_cours: 0, epargne: 110000 },
-  'Lucas Petit': { salaire_net_mensuel: 4200, type_contrat: 'CDI', anciennete_mois: 36, autres_revenus: 0, credits_en_cours: 0, epargne: 15000 },
+  'Sophie Martin': { salaire_net_mensuel: 5200, type_contrat: 'CDI', autres_revenus: 0, credits_en_cours: 0, epargne: 52000 },
+  'Pierre Dubois': { salaire_net_mensuel: 4100, type_contrat: 'CDI', autres_revenus: 300, revenus_locatifs: 0, credits_en_cours: 250, epargne: 45000 },
+  'Claire Renault': { salaire_net_mensuel: 7500, type_contrat: 'CDI', autres_revenus: 500, revenus_locatifs: 800, credits_en_cours: 0, epargne: 110000 },
+  'Lucas Petit': { salaire_net_mensuel: 4200, type_contrat: 'CDI', autres_revenus: 0, credits_en_cours: 0, epargne: 15000 },
 }
 
 const projFinancials: Record<string, any> = {
@@ -40,29 +41,22 @@ export async function POST() {
       const empData = empFinancials[fullName]
       const projData = projFinancials[fullName]
 
-      if (!empData) { results.push({ ref: d.reference, name: fullName, status: 'skipped (no match)' }); continue }
+      if (!empData) { results.push({ ref: d.reference, name: fullName, status: 'skipped' }); continue }
 
-      // Update emprunteur financial data
       const { error: empErr } = await supabase.from('emprunteurs').update(empData).eq('id', emp.id)
 
-      // Update projet financial data
       const projArr = (d as any).projets || []
       const projList = Array.isArray(projArr) ? projArr : [projArr]
       let projStatus = 'no projet'
       if (projList.length > 0 && projList[0]?.id && projData) {
         const { error: projErr } = await supabase.from('projets').update(projData).eq('id', projList[0].id)
-        projStatus = projErr ? 'proj err: ' + projErr.message : 'proj updated'
+        projStatus = projErr ? 'err: ' + projErr.message : 'updated'
       } else if (projData) {
         const { error: projErr } = await supabase.from('projets').insert({ ...projData, dossier_id: d.id })
-        projStatus = projErr ? 'proj insert err: ' + projErr.message : 'proj inserted'
+        projStatus = projErr ? 'err: ' + projErr.message : 'inserted'
       }
 
-      results.push({
-        ref: d.reference,
-        name: fullName,
-        emp: empErr ? 'err: ' + empErr.message : 'updated',
-        proj: projStatus,
-      })
+      results.push({ ref: d.reference, name: fullName, emp: empErr ? 'err: ' + empErr.message : 'updated', proj: projStatus })
     }
 
     return NextResponse.json({ total: dossiers.length, results })
