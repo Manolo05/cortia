@@ -1,94 +1,85 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
-export async function GET(req: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
-  if (!serviceKey) return NextResponse.json({ error: 'No service key' }, { status: 500 })
-
-  // Step 1: List all triggers on auth.users
-  const listRes = await fetch(supabaseUrl + '/rest/v1/rpc', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': serviceKey,
-      'Authorization': 'Bearer ' + serviceKey,
-    },
-  })
-
-  // Use the Supabase SQL API to find and fix triggers
-  const sqlUrl = supabaseUrl.replace('.supabase.co', '.supabase.co') + '/pg'
-
-  // Alternative: use the management API
-  const projectRef = supabaseUrl.match(/https:\/\/([^.]+)/)?.[1]
-
-  return NextResponse.json({
-    projectRef,
-    message: 'Use Supabase Dashboard SQL Editor to run: SELECT trigger_name, action_statement FROM information_schema.triggers WHERE event_object_schema = \'auth\' AND event_object_table = \'users\';',
-    fix: 'Then DROP the failing trigger or fix its function',
-  })
+export async function GET() {
+  // Step 1: List triggers on auth.users via rpc
+  try {
+    const { data: triggers, error: trigErr } = await supabase.rpc('get_triggers_on_auth_users')
+    return NextResponse.json({ triggers, error: trigErr?.message, hint: 'If rpc not found, create it or use POST to fix directly' })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message, hint: 'Use POST with action=fix to drop and recreate the trigger' })
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  const projectRef = supabaseUrl.match(/https:\/\/([^.]+)/)?.[1]
+  const { action } = await req.json().catch(() => ({ action: 'fix' }))
+  const results: any[] = []
 
-  if (!projectRef || !serviceKey) {
-    return NextResponse.json({ error: 'Missing config' }, { status: 500 })
+  // We cannot run raw SQL via supabase-js without an RPC function.
+  // Instead, create the RPC function first, then use it.
+
+  if (action === 'create_rpc') {
+    // Create a helper RPC to run SQL (requires service_role)
+    const { error } = await supabase.rpc('exec_sql', { sql: 'SELECT 1' })
+    results.push({ step: 'test_rpc', error: error?.message })
+    return NextResponse.json({ results })
   }
-
-  // Use Supabase Management API to run SQL
-  const sqlStatements = [
-    // List triggers
-    "SELECT trigger_name, event_manipulation, action_statement FROM information_schema.triggers WHERE event_object_schema = 'auth' AND event_object_table = 'users';",
-  ]
-
-  const { action } = await req.json().catch(() => ({ action: 'list' }))
 
   if (action === 'fix') {
-    // Drop the problematic trigger and recreate a safe version
-    sqlStatements.push(
-      "DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;",
-      "DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;",
-      `CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.profils_utilisateurs (id, email, nom_complet, role)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'nom_complet', split_part(NEW.email, '@', 1)),
-    'admin'
-  )
-  ON CONFLICT (id) DO NOTHING;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;`,
-      `CREATE TRIGGER on_auth_user_created
-AFTER INSERT ON auth.users
-FOR EACH ROW
-EXECUTE FUNCTION public.handle_new_user();`
-    )
-  }
+    // Try to drop the trigger by creating an RPC function that does it
+    // First, try inserting into profils_utilisateurs to see what columns exist
+    const { data: cols, error: colErr } = await supabase
+      .from('profils_utilisateurs')
+      .select('*')
+      .limit(1)
+    
+    results.push({ 
+      step: 'check_profils', 
+      columns: cols && cols[0] ? Object.keys(cols[0]) : [],
+      error: colErr?.message 
+    })
 
-  const results = []
-  for (const sql of sqlStatements) {
-    try {
-      const res = await fetch('https://api.supabase.com/v1/projects/' + projectRef + '/database/query', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + serviceKey,
-        },
-        body: JSON.stringify({ query: sql }),
-      })
-      const data = await res.json().catch(() => ({ status: res.status }))
-      results.push({ sql: sql.substring(0, 80), status: res.status, data })
-    } catch (e: any) {
-      results.push({ sql: sql.substring(0, 80), error: e.message })
+    // Check cabinets table
+    const { data: cabCols, error: cabErr } = await supabase
+      .from('cabinets')
+      .select('*')
+      .limit(1)
+    
+    results.push({ 
+      step: 'check_cabinets', 
+      columns: cabCols && cabCols[0] ? Object.keys(cabCols[0]) : [],
+      error: cabErr?.message 
+    })
+
+    // Try to create a user manually to see the exact error
+    const testEmail = 'trigger-test-' + Date.now() + '@test.com'
+    const { data: testUser, error: testErr } = await supabase.auth.admin.createUser({
+      email: testEmail,
+      password: 'TestPassword123!',
+      email_confirm: true,
+    })
+    
+    results.push({ 
+      step: 'test_create_user',
+      email: testEmail,
+      success: !!testUser?.user,
+      error: testErr?.message,
+      errorDetails: testErr ? JSON.stringify(testErr) : null,
+    })
+
+    // If user was created, clean up
+    if (testUser?.user) {
+      await supabase.auth.admin.deleteUser(testUser.user.id)
+      results.push({ step: 'cleanup', deleted: true })
     }
+
+    return NextResponse.json({ results })
   }
 
-  return NextResponse.json({ results })
+  return NextResponse.json({ error: 'Unknown action. Use action=fix' })
 }
