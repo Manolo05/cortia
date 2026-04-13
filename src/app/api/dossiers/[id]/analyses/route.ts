@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { matchBanques } from '@/data/banques-criteres'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,7 +10,6 @@ const supabase = createClient(
 function clamp(v: number, min = 0, max = 100) { return Math.max(min, Math.min(max, Math.round(v))) }
 
 function computeScoring(dossier: any, projet: any, emprunteurs: any[], charges: any[]) {
-  // === REVENUS (depuis emprunteurs) ===
   let totalRevenus = 0
   let totalChargesEmprunteur = 0
   let mainContrat = 'CDI'
@@ -24,13 +24,10 @@ function computeScoring(dossier: any, projet: any, emprunteurs: any[], charges: 
   }
   if (totalRevenus === 0) totalRevenus = 3500
 
-  // === CHARGES (depuis table charges) ===
   let totalChargesDossier = 0
   for (const c of charges) { totalChargesDossier += (c.mensualite || 0) }
   const totalCharges = totalChargesEmprunteur + totalChargesDossier
-  if (totalCharges === 0 && totalChargesDossier === 0) { /* fallback */ }
 
-  // === PROJET (depuis projets) ===
   const prixAchat = projet?.prix_achat || projet?.prix_bien || 250000
   const travaux = projet?.travaux || 0
   const fraisNotaire = projet?.frais_notaire || Math.round(prixAchat * 0.075)
@@ -39,8 +36,8 @@ function computeScoring(dossier: any, projet: any, emprunteurs: any[], charges: 
   const duree = projet?.duree_souhaitee || 240
   const tauxAnnuel = projet?.taux_estime ? projet.taux_estime / 100 : 0.035
   const loyer = dossier.loyer_actuel || 900
+  const estInvestissement = (projet?.usage || '').toLowerCase().includes('investissement') || (projet?.type_operation || '').includes('investissement')
 
-  // === CALCULS ===
   const tauxMensuel = tauxAnnuel / 12
   const besoin = coutTotal - apport
   const mensualite = besoin > 0 && tauxMensuel > 0 ? besoin * (tauxMensuel * Math.pow(1 + tauxMensuel, duree)) / (Math.pow(1 + tauxMensuel, duree) - 1) : 0
@@ -50,7 +47,6 @@ function computeScoring(dossier: any, projet: any, emprunteurs: any[], charges: 
   const sautDeCharge = mensualite - loyer
   const cdi = mainContrat === 'CDI' || mainContrat === 'Fonctionnaire'
 
-  // === SCORING 5 DIMENSIONS ===
   let score_stabilite = 50
   if (cdi) score_stabilite += 30
   if (mainAnciennete >= 36) score_stabilite += 20
@@ -90,7 +86,6 @@ function computeScoring(dossier: any, projet: any, emprunteurs: any[], charges: 
 
   const score_global = clamp(score_stabilite * 0.15 + score_endettement * 0.30 + score_patrimoine * 0.20 + score_rav * 0.20 + score_charge * 0.15)
 
-  // === POINTS FORTS ===
   const points_forts: string[] = []
   if (cdi && mainAnciennete >= 24) points_forts.push('Emploi stable en CDI avec ' + Math.round(mainAnciennete/12) + ' ans d\'ancienneté')
   if (tauxEndettement <= 33) points_forts.push('Taux d\'endettement maîtrisé à ' + tauxEndettement.toFixed(1) + '% (seuil HCSF : 35%)')
@@ -100,7 +95,6 @@ function computeScoring(dossier: any, projet: any, emprunteurs: any[], charges: 
   if (emprunteurs.length > 1) points_forts.push('Co-emprunteur présent — renforce la capacité d\'emprunt')
   if (points_forts.length === 0) points_forts.push('Dossier en cours d\'analyse approfondie')
 
-  // === POINTS VIGILANCE ===
   const points_vigilance: string[] = []
   if (tauxEndettement > 35) points_vigilance.push('Taux d\'endettement de ' + tauxEndettement.toFixed(1) + '% dépasse le seuil HCSF de 35%')
   if (ratioApport < 10) points_vigilance.push('Apport faible (' + ratioApport.toFixed(0) + '%) — risque de refus sans garanties complémentaires')
@@ -109,11 +103,37 @@ function computeScoring(dossier: any, projet: any, emprunteurs: any[], charges: 
   if (mainAnciennete < 12) points_vigilance.push('Ancienneté professionnelle insuffisante (moins de 12 mois)')
   if (duree > 300) points_vigilance.push('Durée d\'emprunt longue (' + Math.round(duree/12) + ' ans) — impact sur le coût total du crédit')
 
-  // === LECTURE METIER ===
+  // Match against real bank criteria
+  const banquesMatch = matchBanques({
+    revenus: totalRevenus,
+    taux_endettement: tauxEndettement,
+    ratio_apport: ratioApport,
+    duree_mois: duree,
+    anciennete_mois: mainAnciennete,
+    type_contrat: mainContrat,
+    est_investissement: estInvestissement,
+  })
+
+  const banquesEligibles = banquesMatch.filter(b => b.eligible).map(b => b.banque.nom)
+  const banquesProches = banquesMatch.filter(b => !b.eligible && b.score >= 60).map(b => ({
+    nom: b.banque.nom,
+    raisons: b.raisons_refus,
+  }))
+  const meilleuresBanques = banquesMatch.slice(0, 5)
+
   let lecture = 'Dossier analysé par le moteur CortIA. '
-  if (score_global >= 75) lecture += 'Le profil emprunteur présente des indicateurs solides avec un taux d\'endettement maîtrisé et un patrimoine adéquat. Ce dossier peut être présenté aux grandes banques de détail avec confiance. Recommandation : prioriser les banques mutualistes pour obtenir les meilleures conditions.'
-  else if (score_global >= 50) lecture += 'Le dossier est globalement acceptable mais présente des axes d\'amélioration. Il est conseillé de travailler sur le renforcement de l\'apport ou la réduction des charges avant la présentation en banque. Les banques en ligne peuvent offrir plus de flexibilité sur ce type de profil.'
-  else lecture += 'Le dossier nécessite une consolidation significative avant présentation. Les principaux leviers sont l\'augmentation de l\'apport, la réduction du montant emprunté ou l\'allongement de la durée. Un co-emprunteur pourrait également renforcer le dossier.'
+  if (score_global >= 75) lecture += 'Le profil emprunteur présente des indicateurs solides avec un taux d\'endettement maîtrisé et un patrimoine adéquat. Ce dossier peut être présenté aux grandes banques de détail avec confiance. '
+  else if (score_global >= 50) lecture += 'Le dossier est globalement acceptable mais présente des axes d\'amélioration. Il est conseillé de travailler sur le renforcement de l\'apport ou la réduction des charges avant la présentation en banque. '
+  else lecture += 'Le dossier nécessite une consolidation significative avant présentation. Les principaux leviers sont l\'augmentation de l\'apport, la réduction du montant emprunté ou l\'allongement de la durée. Un co-emprunteur pourrait également renforcer le dossier. '
+
+  if (banquesEligibles.length > 0) {
+    lecture += 'Banques recommandées : ' + banquesEligibles.slice(0, 3).join(', ') + '. '
+  } else if (banquesProches.length > 0) {
+    lecture += 'Aucune banque ne correspond parfaitement au profil. Les plus proches : ' + banquesProches.slice(0, 2).map(b => b.nom).join(', ') + '. '
+  }
+
+  const bestTaux = meilleuresBanques.find(b => b.eligible)?.banque.taux_moyen
+  if (bestTaux) lecture += 'Meilleur taux estimé : ' + bestTaux.toFixed(2) + '%. '
 
   return {
     dossier_id: dossier.id, revenus_retenus: Math.round(totalRevenus), cout_total_projet: Math.round(coutTotal),
@@ -122,6 +142,9 @@ function computeScoring(dossier: any, projet: any, emprunteurs: any[], charges: 
     reste_a_vivre_uc: Math.round(resteAVivre * 0.7), ratio_apport: Math.round(ratioApport * 10) / 10,
     saut_de_charge: Math.round(sautDeCharge), score_global, score_stabilite, score_endettement,
     score_patrimoine, score_reste_a_vivre: score_rav, score_charge, points_forts, points_vigilance, lecture_metier: lecture,
+    banques_eligibles: banquesEligibles,
+    banques_proches: banquesProches.slice(0, 3),
+    top_banques: meilleuresBanques.slice(0, 5).map(b => ({ nom: b.banque.nom, score: b.score, eligible: b.eligible, taux: b.banque.taux_moyen, frais: b.banque.frais_dossier })),
   }
 }
 
@@ -133,8 +156,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const projets = Array.isArray(dossier.projets) ? dossier.projets : (dossier.projets ? [dossier.projets] : [])
     const emprunteurs = Array.isArray(dossier.emprunteurs) ? dossier.emprunteurs : (dossier.emprunteurs ? [dossier.emprunteurs] : [])
     const charges = Array.isArray(dossier.charges) ? dossier.charges : (dossier.charges ? [dossier.charges] : [])
-    const projet = projets[0] || null
-    const scoring = computeScoring(dossier, projet, emprunteurs, charges)
+    const scoring = computeScoring(dossier, projets[0] || null, emprunteurs, charges)
 
     try { const { data } = await supabase.from('analyses_financieres').upsert(scoring, { onConflict: 'dossier_id' }).select().single(); if (data) return NextResponse.json(data) } catch {}
     try { const { data } = await supabase.from('analyses_financieres').insert(scoring).select().single(); if (data) return NextResponse.json(data) } catch {}
