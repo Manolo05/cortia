@@ -1,5 +1,6 @@
 import { Sidebar } from '@/components/layout/sidebar'
 import { createClient } from '@/lib/supabase/server'
+import { MobileMenuWrapper } from '@/components/layout/mobile-menu'
 
 async function ensureUserSetup(supabase: any, user: any) {
   try {
@@ -31,9 +32,7 @@ async function ensureUserSetup(supabase: any, user: any) {
           role: 'admin',
         })
     }
-  } catch (e) {
-    // Silent fail
-  }
+  } catch (e) {}
 }
 
 export default async function DashboardLayout({
@@ -49,11 +48,11 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: 'var(--bg-app)' }}>
+    <MobileMenuWrapper>
       <Sidebar />
-      <main style={{ flex: 1, marginLeft: '220px', overflowY: 'auto', overflowX: 'hidden', height: '100vh', background: 'var(--bg-app)' }}>
+      <main className="main-content">
         {children}
       </main>
-    </div>
+    </MobileMenuWrapper>
   )
 }
