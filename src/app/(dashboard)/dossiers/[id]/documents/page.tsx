@@ -344,7 +344,7 @@ const [documents, setDocuments] = useState<Document[]>([])
                     {ocrResult[doc.id] && (
                       <div style={{ marginTop: '10px', padding: '10px 14px', background: '#f5f3ff', borderRadius: '8px', border: '1px solid #ddd6fe', fontSize: '12px' }}>
                         <div style={{ fontWeight: 700, color: '#6d28d9', marginBottom: '6px' }}>
-                          {'Extraction IA — '}{ocrResult[doc.id].type_document || 'Document'}
+                          {'Extraction IA â '}{ocrResult[doc.id].type_document || 'Document'}
                         </div>
                         {ocrResult[doc.id].donnees_extraites?.nom && (
                           <div>{'Nom : '}<strong>{ocrResult[doc.id].donnees_extraites.prenom || ''} {ocrResult[doc.id].donnees_extraites.nom}</strong></div>
@@ -439,7 +439,7 @@ const [documents, setDocuments] = useState<Document[]>([])
         {analyseGlobale && analyseGlobale.analyse && (
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ padding: '16px', background: analyseGlobale.analyse.synthese?.statut === 'favorable' ? '#F0FDF4' : analyseGlobale.analyse.synthese?.statut === 'defavorable' ? '#FEF2F2' : '#FFFBEB', borderRadius: '12px', border: '1px solid #ddd' }}>
-              <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '10px', color: '#0B1D3A' }}>{'Synthese — Score '}{analyseGlobale.analyse.synthese?.score_global || 0}{'/100'}</div>
+              <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '10px', color: '#0B1D3A' }}>{'Synthese â Score '}{analyseGlobale.analyse.synthese?.score_global || 0}{'/100'}</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '8px', fontSize: '13px' }}>
                 <div>{'Revenus : '}<strong>{(analyseGlobale.analyse.synthese?.revenus_confirmes || 0).toLocaleString('fr-FR')}{' EUR'}</strong></div>
                 <div>{'Charges : '}<strong>{(analyseGlobale.analyse.synthese?.charges_confirmees || 0).toLocaleString('fr-FR')}{' EUR'}</strong></div>
