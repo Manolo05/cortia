@@ -54,6 +54,28 @@ const [documents, setDocuments] = useState<Document[]>([])
   const [error, setError] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [ocrLoading, setOcrLoading] = useState<string | null>(null)
+  const [ocrResult, setOcrResult] = useState<Record<string, any>>({})
+
+  async function analyseOCR(doc: Document) {
+    if (!doc.url) return
+    setOcrLoading(doc.id)
+    try {
+      const res = await fetch('/api/dossiers/' + dossierId + '/ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentUrl: doc.url, documentId: doc.id }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setOcrResult(prev => ({ ...prev, [doc.id]: data.extraction }))
+        await fetchDocuments()
+      } else {
+        setError('Erreur OCR: ' + (data.error || 'Echec'))
+      }
+    } catch { setError('Erreur de connexion OCR') }
+    setOcrLoading(null)
+  }
 
   useEffect(() => { fetchDocuments() }, [dossierId])
 
@@ -261,8 +283,34 @@ const [documents, setDocuments] = useState<Document[]>([])
                         <a href={doc.url} target='_blank' rel='noopener noreferrer' style={{ fontSize: '12px', color: 'var(--brand-blue)', fontWeight: 500 }}>
                           Voir le fichier
                         </a>
+
+                      )}
+                      {doc.url && (
+                        <button
+                          onClick={() => analyseOCR(doc)}
+                          disabled={ocrLoading === doc.id}
+                          style={{
+                            fontSize: '11px', padding: '3px 10px', borderRadius: '20px', cursor: 'pointer',
+                            background: ocrLoading === doc.id ? '#e2e8f0' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                            color: ocrLoading === doc.id ? '#64748b' : 'white', border: 'none', fontWeight: 600,
+                            display: 'inline-flex', alignItems: 'center', gap: '4px',
+                          }}
+                        >
+                          {ocrLoading === doc.id ? 'Analyse...' : 'Extraire IA'}
+                        </button>
                       )}
                     </div>
+                    {ocrResult[doc.id] && (
+                      <div style={{ marginTop: '10px', padding: '10px 14px', background: '#f5f3ff', borderRadius: '8px', border: '1px solid #ddd6fe', fontSize: '12px' }}>
+                        <div style={{ fontWeight: 700, color: '#6d28d9', marginBottom: '6px' }}>Extraction IA — {ocrResult[doc.id].type_document || 'Document'}</div>
+                        {ocrResult[doc.id].donnees_extraites?.nom && <div>Nom : <strong>{ocrResult[doc.id].donnees_extraites.prenom} {ocrResult[doc.id].donnees_extraites.nom}</strong></div>}
+                        {ocrResult[doc.id].donnees_extraites?.salaire_net_mensuel && <div>Salaire net : <strong>{ocrResult[doc.id].donnees_extraites.salaire_net_mensuel.toLocaleString('fr-FR')} EUR/mois</strong></div>}
+                        {ocrResult[doc.id].donnees_extraites?.employeur && <div>Employeur : <strong>{ocrResult[doc.id].donnees_extraites.employeur}</strong></div>}
+                        {ocrResult[doc.id].donnees_extraites?.type_contrat && <div>Contrat : <strong>{ocrResult[doc.id].donnees_extraites.type_contrat}</strong></div>}
+                        {ocrResult[doc.id].donnees_extraites?.revenu_fiscal_reference && <div>RFR : <strong>{ocrResult[doc.id].donnees_extraites.revenu_fiscal_reference.toLocaleString('fr-FR')} EUR</strong></div>}
+                        {ocrResult[doc.id].auto_filled && <div style={{ marginTop: '6px', color: '#059669', fontWeight: 600 }}>Donnees auto-remplies dans le dossier</div>}
+                        {ocrResult[doc.id].resume && <div style={{ marginTop: '4px', color: '#64748b', fontStyle: 'italic' }}>{ocrResult[doc.id].resume}</div>}
+                      </div>
                   </div>
                   <select
                     value={doc.statut || 'en_attente'}
