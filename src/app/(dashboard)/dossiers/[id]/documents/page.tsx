@@ -73,7 +73,7 @@ const [documents, setDocuments] = useState<Document[]>([])
       } else {
         setError('Erreur OCR: ' + (data.error || 'Echec'))
       }
-    } catch { setError('Erreur de connexion OCR') }
+    } catch (_) { setError('Erreur de connexion OCR') }
     setOcrLoading(null)
   }
 
