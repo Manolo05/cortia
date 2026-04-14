@@ -55,7 +55,7 @@ const [documents, setDocuments] = useState<Document[]>([])
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [ocrLoading, setOcrLoading] = useState<string | null>(null)
-  const [ocrResult, setOcrResult] = useState<Record<string, any>>({})
+  const [ocrResult, setOcrResult] = useState<Record<string, unknown>>({})
 
   async function analyseOCR(doc: Document) {
     if (!doc.url) return
@@ -68,12 +68,12 @@ const [documents, setDocuments] = useState<Document[]>([])
       })
       const data = await res.json()
       if (data.success) {
-        setOcrResult(prev => ({ ...prev, [doc.id]: data.extraction }))
+        setOcrResult((prev: Record<string, unknown>) => ({ ...prev, [doc.id]: data.extraction }))
         await fetchDocuments()
       } else {
         setError('Erreur OCR: ' + (data.error || 'Echec'))
       }
-    } catch (_) { setError('Erreur de connexion OCR') }
+    } catch (err) { setError('Erreur de connexion OCR: ' + String(err)) }
     setOcrLoading(null)
   }
 
@@ -298,19 +298,7 @@ const [documents, setDocuments] = useState<Document[]>([])
                         >
                           {ocrLoading === doc.id ? 'Analyse...' : 'Extraire IA'}
                         </button>
-                      )}
                     </div>
-                    {ocrResult[doc.id] && (
-                      <div style={{ marginTop: '10px', padding: '10px 14px', background: '#f5f3ff', borderRadius: '8px', border: '1px solid #ddd6fe', fontSize: '12px' }}>
-                        <div style={{ fontWeight: 700, color: '#6d28d9', marginBottom: '6px' }}>Extraction IA — {ocrResult[doc.id].type_document || 'Document'}</div>
-                        {ocrResult[doc.id].donnees_extraites?.nom && <div>Nom : <strong>{ocrResult[doc.id].donnees_extraites.prenom} {ocrResult[doc.id].donnees_extraites.nom}</strong></div>}
-                        {ocrResult[doc.id].donnees_extraites?.salaire_net_mensuel && <div>Salaire net : <strong>{ocrResult[doc.id].donnees_extraites.salaire_net_mensuel.toLocaleString('fr-FR')} EUR/mois</strong></div>}
-                        {ocrResult[doc.id].donnees_extraites?.employeur && <div>Employeur : <strong>{ocrResult[doc.id].donnees_extraites.employeur}</strong></div>}
-                        {ocrResult[doc.id].donnees_extraites?.type_contrat && <div>Contrat : <strong>{ocrResult[doc.id].donnees_extraites.type_contrat}</strong></div>}
-                        {ocrResult[doc.id].donnees_extraites?.revenu_fiscal_reference && <div>RFR : <strong>{ocrResult[doc.id].donnees_extraites.revenu_fiscal_reference.toLocaleString('fr-FR')} EUR</strong></div>}
-                        {ocrResult[doc.id].auto_filled && <div style={{ marginTop: '6px', color: '#059669', fontWeight: 600 }}>Donnees auto-remplies dans le dossier</div>}
-                        {ocrResult[doc.id].resume && <div style={{ marginTop: '4px', color: '#64748b', fontStyle: 'italic' }}>{ocrResult[doc.id].resume}</div>}
-                      </div>
                   </div>
                   <select
                     value={doc.statut || 'en_attente'}
