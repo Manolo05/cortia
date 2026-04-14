@@ -424,8 +424,6 @@ const [documents, setDocuments] = useState<Document[]>([])
         </div>
       </div>
 
-    </div>
-
       <div className='card' style={{ marginTop: '8px' }}>
         <div className='card-header' style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
