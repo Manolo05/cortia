@@ -56,7 +56,8 @@ const [documents, setDocuments] = useState<Document[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [ocrLoading, setOcrLoading] = useState<string | null>(null)
-  const [ocrResult, setOcrResult] = useState<Record<string, Record<string, string | number | boolean | null>>>({})
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [ocrResult, setOcrResult] = useState<Record<string, any>>({})
 
   async function analyseOCR(doc: Document) {
     if (!doc.url) return
@@ -306,12 +307,33 @@ const [documents, setDocuments] = useState<Document[]>([])
                     </div>
                     {ocrResult[doc.id] && (
                       <div style={{ marginTop: '10px', padding: '10px 14px', background: '#f5f3ff', borderRadius: '8px', border: '1px solid #ddd6fe', fontSize: '12px' }}>
-                        <div style={{ fontWeight: 700, color: '#6d28d9', marginBottom: '6px' }}>Extraction IA</div>
-                        {ocrResult[doc.id].nom && <div>Nom : <strong>{String(ocrResult[doc.id].prenom || '')} {String(ocrResult[doc.id].nom)}</strong></div>}
-                        {ocrResult[doc.id].salaire_net_mensuel && <div>Salaire : <strong>{Number(ocrResult[doc.id].salaire_net_mensuel).toLocaleString('fr-FR')} EUR/mois</strong></div>}
-                        {ocrResult[doc.id].employeur && <div>Employeur : <strong>{String(ocrResult[doc.id].employeur)}</strong></div>}
-                        {ocrResult[doc.id].type_contrat && <div>Contrat : <strong>{String(ocrResult[doc.id].type_contrat)}</strong></div>}
-                        <div style={{ marginTop: '6px', color: '#059669', fontWeight: 600 }}>Donnees auto-remplies</div>
+                        <div style={{ fontWeight: 700, color: '#6d28d9', marginBottom: '6px' }}>
+                          {'Extraction IA — '}{ocrResult[doc.id].type_document || 'Document'}
+                        </div>
+                        {ocrResult[doc.id].donnees_extraites?.nom && (
+                          <div>{'Nom : '}<strong>{ocrResult[doc.id].donnees_extraites.prenom || ''} {ocrResult[doc.id].donnees_extraites.nom}</strong></div>
+                        )}
+                        {ocrResult[doc.id].donnees_extraites?.salaire_net_mensuel && (
+                          <div>{'Salaire net : '}<strong>{Number(ocrResult[doc.id].donnees_extraites.salaire_net_mensuel).toLocaleString('fr-FR')} EUR/mois</strong></div>
+                        )}
+                        {ocrResult[doc.id].donnees_extraites?.employeur && (
+                          <div>{'Employeur : '}<strong>{ocrResult[doc.id].donnees_extraites.employeur}</strong></div>
+                        )}
+                        {ocrResult[doc.id].donnees_extraites?.type_contrat && (
+                          <div>{'Contrat : '}<strong>{ocrResult[doc.id].donnees_extraites.type_contrat}</strong></div>
+                        )}
+                        {ocrResult[doc.id].donnees_extraites?.revenu_fiscal_reference && (
+                          <div>{'RFR : '}<strong>{Number(ocrResult[doc.id].donnees_extraites.revenu_fiscal_reference).toLocaleString('fr-FR')} EUR</strong></div>
+                        )}
+                        {ocrResult[doc.id].resume && (
+                          <div style={{ marginTop: '4px', color: '#64748b', fontStyle: 'italic' }}>{ocrResult[doc.id].resume}</div>
+                        )}
+                        {ocrResult[doc.id].auto_filled && (
+                          <div style={{ marginTop: '6px', color: '#059669', fontWeight: 600 }}>{'Donnees auto-remplies dans le dossier'}</div>
+                        )}
+                        {!ocrResult[doc.id].auto_filled && (
+                          <div style={{ marginTop: '6px', color: '#64748b' }}>{'Confiance : '}{Math.round((ocrResult[doc.id].confiance || 0) * 100)}%</div>
+                        )}
                       </div>
                     )}
                   </div>
