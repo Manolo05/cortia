@@ -65,13 +65,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     else if (contentType.includes('image/webp')) mediaType = 'image/webp'
 
     // Call Claude API for OCR
+    const isPdf = mediaType === 'application/pdf'
+    const apiHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    }
+    if (isPdf) {
+      apiHeaders['anthropic-beta'] = 'pdfs-2024-09-25'
+    }
+
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
+      headers: apiHeaders,
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 2000,
@@ -79,7 +85,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           role: 'user',
           content: [
             {
-              type: mediaType === 'application/pdf' ? 'document' : 'image',
+              type: isPdf ? 'document' : 'image',
               source: { type: 'base64', media_type: mediaType, data: base64 },
             },
             { type: 'text', text: OCR_PROMPT },
