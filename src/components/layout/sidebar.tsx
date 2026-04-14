@@ -143,7 +143,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside style={{
+    <aside className="sidebar" style={{
       width: '220px', minHeight: '100vh', background: '#0f172a',
       display: 'flex', flexDirection: 'column',
       position: 'fixed', left: 0, top: 0, bottom: 0, zIndex: 50,
