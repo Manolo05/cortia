@@ -54,28 +54,6 @@ const [documents, setDocuments] = useState<Document[]>([])
   const [error, setError] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [ocrLoading, setOcrLoading] = useState<string | null>(null)
-  const [ocrResult, setOcrResult] = useState<Record<string, unknown>>({})
-
-  async function analyseOCR(doc: Document) {
-    if (!doc.url) return
-    setOcrLoading(doc.id)
-    try {
-      const res = await fetch('/api/dossiers/' + dossierId + '/ocr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentUrl: doc.url, documentId: doc.id }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setOcrResult((prev: Record<string, unknown>) => ({ ...prev, [doc.id]: data.extraction }))
-        await fetchDocuments()
-      } else {
-        setError('Erreur OCR: ' + (data.error || 'Echec'))
-      }
-    } catch (err) { setError('Erreur de connexion OCR: ' + String(err)) }
-    setOcrLoading(null)
-  }
 
   useEffect(() => { fetchDocuments() }, [dossierId])
 
@@ -283,21 +261,7 @@ const [documents, setDocuments] = useState<Document[]>([])
                         <a href={doc.url} target='_blank' rel='noopener noreferrer' style={{ fontSize: '12px', color: 'var(--brand-blue)', fontWeight: 500 }}>
                           Voir le fichier
                         </a>
-
                       )}
-                      {doc.url && (
-                        <button
-                          onClick={() => analyseOCR(doc)}
-                          disabled={ocrLoading === doc.id}
-                          style={{
-                            fontSize: '11px', padding: '3px 10px', borderRadius: '20px', cursor: 'pointer',
-                            background: ocrLoading === doc.id ? '#e2e8f0' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                            color: ocrLoading === doc.id ? '#64748b' : 'white', border: 'none', fontWeight: 600,
-                            display: 'inline-flex', alignItems: 'center', gap: '4px',
-                          }}
-                        >
-                          {ocrLoading === doc.id ? 'Analyse...' : 'Extraire IA'}
-                        </button>
                     </div>
                   </div>
                   <select
