@@ -86,7 +86,20 @@ const [documents, setDocuments] = useState<Document[]>([])
   async function fetchDocuments() {
     setLoading(true)
     const res = await fetch('/api/dossiers/' + dossierId + '/documents')
-    if (res.ok) { const data = await res.json(); setDocuments(data) }
+    if (res.ok) {
+      const raw = await res.json()
+      const mapped = (raw || []).map((d: Record<string, unknown>) => ({
+        id: d.id as string,
+        dossier_id: d.dossier_id as string,
+        nom: (d.nom_fichier || d.nom || 'Document') as string,
+        type: (d.type_document || d.type || 'autre') as string,
+        url: (d.url_stockage || d.url || null) as string | undefined,
+        taille: (d.taille_fichier || d.taille || null) as number | undefined,
+        statut: (d.statut_verification || d.statut || 'en_attente') as string,
+        created_at: d.created_at as string,
+      }))
+      setDocuments(mapped)
+    }
     setLoading(false)
   }
 
