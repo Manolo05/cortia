@@ -58,6 +58,29 @@ const [documents, setDocuments] = useState<Document[]>([])
   const [ocrLoading, setOcrLoading] = useState<string | null>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ocrResult, setOcrResult] = useState<Record<string, any>>({})
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [analyseGlobale, setAnalyseGlobale] = useState<any>(null)
+  const [analyseLoading, setAnalyseLoading] = useState(false)
+
+  async function lancerAnalyseGlobale() {
+    setAnalyseLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/dossiers/' + dossierId + '/analyser-docs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      const data = await res.json()
+      if (data.success) {
+        setAnalyseGlobale(data)
+      } else {
+        setError(data.error || 'Erreur analyse globale')
+      }
+    } catch (err) {
+      setError('Erreur: ' + String(err))
+    }
+    setAnalyseLoading(false)
+  }
 
   async function analyseOCR(doc: Document) {
     if (!doc.url) return
@@ -399,6 +422,77 @@ const [documents, setDocuments] = useState<Document[]>([])
             )
           })}
         </div>
+      </div>
+
+    </div>
+
+      <div className='card' style={{ marginTop: '8px' }}>
+        <div className='card-header' style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h3 className='card-title'>{'Analyse globale IA'}</h3>
+            <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{'Analyse croisee de tous les documents'}</span>
+          </div>
+          <button onClick={lancerAnalyseGlobale} disabled={analyseLoading} style={{ padding: '8px 20px', borderRadius: '10px', cursor: analyseLoading ? 'wait' : 'pointer', background: analyseLoading ? '#e2e8f0' : 'linear-gradient(135deg, #0B1D3A, #1a3a6b)', color: analyseLoading ? '#64748b' : 'white', border: 'none', fontWeight: 700, fontSize: '13px' }}>
+            {analyseLoading ? 'Analyse en cours...' : 'Lancer l\'analyse IA'}
+          </button>
+        </div>
+        {analyseGlobale && analyseGlobale.analyse && (
+          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ padding: '16px', background: analyseGlobale.analyse.synthese?.statut === 'favorable' ? '#F0FDF4' : analyseGlobale.analyse.synthese?.statut === 'defavorable' ? '#FEF2F2' : '#FFFBEB', borderRadius: '12px', border: '1px solid #ddd' }}>
+              <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '10px', color: '#0B1D3A' }}>{'Synthese — Score '}{analyseGlobale.analyse.synthese?.score_global || 0}{'/100'}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '8px', fontSize: '13px' }}>
+                <div>{'Revenus : '}<strong>{(analyseGlobale.analyse.synthese?.revenus_confirmes || 0).toLocaleString('fr-FR')}{' EUR'}</strong></div>
+                <div>{'Charges : '}<strong>{(analyseGlobale.analyse.synthese?.charges_confirmees || 0).toLocaleString('fr-FR')}{' EUR'}</strong></div>
+                <div>{'Endettement : '}<strong>{analyseGlobale.analyse.synthese?.taux_endettement || 0}{'%'}</strong></div>
+                <div>{'Reste a vivre : '}<strong>{(analyseGlobale.analyse.synthese?.reste_a_vivre || 0).toLocaleString('fr-FR')}{' EUR'}</strong></div>
+                <div>{'Capacite : '}<strong>{(analyseGlobale.analyse.synthese?.capacite_emprunt_mensuel || 0).toLocaleString('fr-FR')}{' EUR/mois'}</strong></div>
+                <div>{'Statut : '}<strong style={{ color: analyseGlobale.analyse.synthese?.statut === 'favorable' ? '#059669' : '#dc2626' }}>{analyseGlobale.analyse.synthese?.statut || '-'}</strong></div>
+              </div>
+            </div>
+            {analyseGlobale.analyse.coherence_revenus && (
+              <div style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '13px' }}>
+                <div style={{ fontWeight: 700, marginBottom: '6px' }}>{'Coherence revenus : '}<span style={{ color: analyseGlobale.analyse.coherence_revenus.statut === 'ok' ? '#059669' : '#f59e0b' }}>{analyseGlobale.analyse.coherence_revenus.statut}</span></div>
+                <div>{analyseGlobale.analyse.coherence_revenus.details}</div>
+              </div>
+            )}
+            {analyseGlobale.analyse.anomalies && analyseGlobale.analyse.anomalies.length > 0 && (
+              <div style={{ padding: '12px 16px', background: '#FEF2F2', borderRadius: '10px', border: '1px solid #FECACA', fontSize: '13px' }}>
+                <div style={{ fontWeight: 700, marginBottom: '8px', color: '#dc2626' }}>{'Anomalies ('}{analyseGlobale.analyse.anomalies.length}{')'}</div>
+                {analyseGlobale.analyse.anomalies.map((a: any, i: number) => (
+                  <div key={i} style={{ marginBottom: '8px' }}>
+                    <div><strong style={{ color: a.severite === 'haute' ? '#dc2626' : '#f59e0b' }}>{'['}{a.severite}{'] '}</strong>{a.description}</div>
+                    {a.recommandation && <div style={{ color: '#059669', marginTop: '2px' }}>{a.recommandation}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {analyseGlobale.analyse.documents_manquants && analyseGlobale.analyse.documents_manquants.length > 0 && (
+              <div style={{ padding: '12px 16px', background: '#FFFBEB', borderRadius: '10px', border: '1px solid #FDE68A', fontSize: '13px' }}>
+                <div style={{ fontWeight: 700, marginBottom: '6px', color: '#d97706' }}>{'Documents manquants'}</div>
+                {analyseGlobale.analyse.documents_manquants.map((d: string, i: number) => (<div key={i}>{'- '}{d}</div>))}
+              </div>
+            )}
+            {analyseGlobale.analyse.banques_recommandees && analyseGlobale.analyse.banques_recommandees.length > 0 && (
+              <div style={{ padding: '12px 16px', background: '#EFF6FF', borderRadius: '10px', border: '1px solid #BFDBFE', fontSize: '13px' }}>
+                <div style={{ fontWeight: 700, marginBottom: '6px', color: '#1d4ed8' }}>{'Banques recommandees'}</div>
+                <div>{analyseGlobale.analyse.banques_recommandees.join(', ')}</div>
+              </div>
+            )}
+            {analyseGlobale.analyse.recommandations && analyseGlobale.analyse.recommandations.length > 0 && (
+              <div style={{ padding: '12px 16px', background: '#F0FDF4', borderRadius: '10px', border: '1px solid #BBF7D0', fontSize: '13px' }}>
+                <div style={{ fontWeight: 700, marginBottom: '6px', color: '#059669' }}>{'Recommandations courtier'}</div>
+                {analyseGlobale.analyse.recommandations.map((r: string, i: number) => (<div key={i} style={{ marginBottom: '4px' }}>{'- '}{r}</div>))}
+              </div>
+            )}
+            {analyseGlobale.analyse.conclusion && (
+              <div style={{ padding: '14px 16px', background: '#0B1D3A', borderRadius: '12px', color: 'white', fontSize: '14px', lineHeight: 1.6 }}>
+                <div style={{ fontWeight: 700, marginBottom: '6px', color: '#D4A843' }}>{'Conclusion'}</div>
+                {analyseGlobale.analyse.conclusion}
+              </div>
+            )}
+            <div style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'right' }}>{analyseGlobale.nombre_documents_analyses}{' documents analyses sur '}{analyseGlobale.total_documents}</div>
+          </div>
+        )}
       </div>
 
     </div>
