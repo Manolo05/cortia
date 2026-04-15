@@ -158,6 +158,43 @@ Reponds UNIQUEMENT avec un JSON valide (sans markdown, sans backticks) avec cett
       return NextResponse.json({ error: 'Impossible de parser la reponse IA', raw: rawText.substring(0, 500) }, { status: 500 })
     }
 
+    // Sauvegarder l'analyse globale dans le dossier
+    const synthese = analyseResult.synthese || {}
+    const anomalies = analyseResult.anomalies || []
+    const recommandations = analyseResult.recommandations || []
+
+    // Mettre a jour le dossier avec les resultats cles
+    await supabase.from('dossiers').update({
+      score_global: synthese.score_global || 0,
+      taux_endettement: synthese.taux_endettement || 0,
+      reste_a_vivre: synthese.reste_a_vivre || 0,
+      mensualite_estimee: synthese.capacite_emprunt_mensuel || 0,
+      niveau_risque: synthese.statut === 'favorable' ? 'faible' : synthese.statut === 'defavorable' ? 'eleve' : 'moyen',
+      analyse_globale: analyseResult,
+      updated_at: new Date().toISOString(),
+    }).eq('id', dossierId)
+
+    // Sauvegarder dans analyses_financieres (upsert)
+    await supabase.from('analyses_financieres').upsert({
+      dossier_id: dossierId,
+      revenus_nets_mensuels_total: synthese.revenus_confirmes || 0,
+      charges_mensuelles_total: synthese.charges_confirmees || 0,
+      reste_a_vivre: synthese.reste_a_vivre || 0,
+      taux_endettement: synthese.taux_endettement || 0,
+      taux_endettement_actuel: synthese.taux_endettement || 0,
+      capacite_emprunt_max: (synthese.capacite_emprunt_mensuel || 0) * (projetResume?.duree_souhaitee || 240),
+      mensualite_estimee: synthese.capacite_emprunt_mensuel || 0,
+      score_global: synthese.score_global || 0,
+      niveau_risque: synthese.statut === 'favorable' ? 'faible' : synthese.statut === 'defavorable' ? 'eleve' : 'moyen',
+      points_forts: recommandations.slice(0, 3),
+      points_vigilance: anomalies.map((a: any) => a.description).slice(0, 5),
+      recommandations: recommandations,
+      genere_par_ia: true,
+      version_modele: 'claude-sonnet-4',
+      lecture_metier: analyseResult.conclusion || '',
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'dossier_id' })
+
     return NextResponse.json({
       success: true,
       analyse: analyseResult,
