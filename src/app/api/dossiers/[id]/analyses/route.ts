@@ -188,8 +188,51 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const charges = Array.isArray(dossier.charges) ? dossier.charges : (dossier.charges ? [dossier.charges] : [])
     const scoring = computeScoring(dossier, projets[0] || null, emprunteurs, charges)
 
-    try { const { data } = await supabase.from('analyses_financieres').upsert(scoring, { onConflict: 'dossier_id' }).select().single(); if (data) return NextResponse.json(data) } catch {}
-    try { const { data } = await supabase.from('analyses_financieres').insert(scoring).select().single(); if (data) return NextResponse.json(data) } catch {}
+    // Mapper vers les colonnes exactes de la table analyses_financieres
+    const dbRecord: Record<string, any> = {
+      dossier_id: scoring.dossier_id,
+      revenus_nets_mensuels_total: scoring.revenus_retenus || 0,
+      charges_mensuelles_total: 0,
+      reste_a_vivre: scoring.reste_a_vivre,
+      taux_endettement: scoring.taux_endettement,
+      taux_endettement_actuel: scoring.taux_endettement,
+      besoin_financement: scoring.besoin_financement,
+      mensualite_estimee: scoring.mensualite_estimee,
+      score_global: scoring.score_global,
+      score_stabilite: scoring.score_stabilite,
+      score_endettement: scoring.score_endettement,
+      score_patrimoine: scoring.score_patrimoine,
+      score_revenus: scoring.score_reste_a_vivre || 0,
+      score_apport: scoring.score_charge || 0,
+      ratio_apport: scoring.ratio_apport,
+      taux_apport: scoring.ratio_apport,
+      saut_de_charge: scoring.saut_de_charge,
+      reste_a_vivre_uc: scoring.reste_a_vivre_uc,
+      points_forts: scoring.points_forts,
+      points_vigilance: scoring.points_vigilance,
+      lecture_metier: scoring.lecture_metier,
+      niveau_risque: scoring.score_global >= 75 ? 'faible' : scoring.score_global >= 50 ? 'moyen' : 'eleve',
+    }
+
+    // Ecrire dans analyses_financieres
+    const { data: upsertData, error: upsertErr } = await supabase.from('analyses_financieres').upsert(dbRecord, { onConflict: 'dossier_id' }).select().single()
+    if (upsertErr) {
+      console.error('upsert failed:', upsertErr.message)
+      const { data: insertData, error: insertErr } = await supabase.from('analyses_financieres').insert(dbRecord).select().single()
+      if (insertErr) console.error('insert failed:', insertErr.message)
+      if (insertData) return NextResponse.json({ ...insertData, banques_eligibles: scoring.banques_eligibles, banques_proches: scoring.banques_proches, top_banques: scoring.top_banques })
+    }
+
+    // Mettre a jour le dossier avec les scores
+    await supabase.from('dossiers').update({
+      score_global: scoring.score_global,
+      taux_endettement: scoring.taux_endettement,
+      reste_a_vivre: scoring.reste_a_vivre,
+      mensualite_estimee: scoring.mensualite_estimee,
+      niveau_risque: scoring.score_global >= 75 ? 'faible' : scoring.score_global >= 50 ? 'moyen' : 'eleve',
+    }).eq('id', params.id)
+
+    if (upsertData) return NextResponse.json({ ...upsertData, banques_eligibles: scoring.banques_eligibles, banques_proches: scoring.banques_proches, top_banques: scoring.top_banques })
     return NextResponse.json(scoring)
   } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }) }
 }
