@@ -59,13 +59,13 @@ function getAlerteBorder(niveau: string): string {
 
 function getAlerteLabel(niveau: string): string {
   if (niveau === 'ok') return 'OK'
-  if (niveau === 'vigilance') return 'À vérifier'
+  if (niveau === 'vigilance') return 'Ã vÃ©rifier'
   return 'Alerte'
 }
 
 function getStatutControle(statut: string): { color: string; bg: string; label: string } {
   if (statut === 'valide') return { color: '#16a34a', bg: '#f0fdf4', label: 'Valide' }
-  if (statut === 'a_verifier') return { color: '#ca8a04', bg: '#fefce8', label: 'À vérifier' }
+  if (statut === 'a_verifier') return { color: '#ca8a04', bg: '#fefce8', label: 'Ã vÃ©rifier' }
   if (statut === 'alerte') return { color: '#dc2626', bg: '#fef2f2', label: 'Alerte' }
   return { color: '#94a3b8', bg: 'var(--surface-2)', label: 'Absent' }
 }
@@ -92,11 +92,11 @@ function analyserDocuments(dossier: Dossier | null, docs: Document[]): { control
   const typesPresents = docs.map(d => d.type_document || d.nom.toLowerCase())
 
   const typesRequis = [
-    { type: 'identite', label: 'Pièce d’identité', motsClefs: ['identite', 'cni', 'passeport'] },
+    { type: 'identite', label: 'PiÃ¨ce dâidentitÃ©', motsClefs: ['identite', 'cni', 'passeport'] },
     { type: 'domicile', label: 'Justificatif de domicile', motsClefs: ['domicile', 'facture', 'quittance'] },
-    { type: 'imposition', label: 'Avis d’imposition', motsClefs: ['imposition', 'impot', 'fiscal'] },
+    { type: 'imposition', label: 'Avis dâimposition', motsClefs: ['imposition', 'impot', 'fiscal'] },
     { type: 'salaire', label: 'Bulletins de salaire', motsClefs: ['salaire', 'bulletin', 'fiche de paie'] },
-    { type: 'bancaire', label: 'Relevés bancaires', motsClefs: ['bancaire', 'releve', 'compte'] },
+    { type: 'bancaire', label: 'RelevÃ©s bancaires', motsClefs: ['bancaire', 'releve', 'compte'] },
   ]
 
   typesRequis.forEach(requis => {
@@ -107,42 +107,42 @@ function analyserDocuments(dossier: Dossier | null, docs: Document[]): { control
     })
 
     if (!docTrouve) {
-      controles.push({ nom: requis.label, type: requis.type, statut: 'absent', detail: 'Document non fourni — à demander', score: 0 })
+      controles.push({ nom: requis.label, type: requis.type, statut: 'absent', detail: 'Document non fourni â Ã  demander', score: 0 })
       alertes.push({ niveau: 'vigilance', titre: requis.label + ' manquant', detail: 'Ce document est requis pour la constitution du dossier bancaire.', source: 'Collecte documentaire' })
     } else if (docTrouve.statut === 'valide') {
-      controles.push({ nom: requis.label, type: requis.type, statut: 'valide', detail: 'Document présent et validé', score: 100 })
-      alertes.push({ niveau: 'ok', titre: requis.label + ' conforme', detail: 'Document vérifié et accepté.', source: docTrouve.nom })
+      controles.push({ nom: requis.label, type: requis.type, statut: 'valide', detail: 'Document prÃ©sent et validÃ©', score: 100 })
+      alertes.push({ niveau: 'ok', titre: requis.label + ' conforme', detail: 'Document vÃ©rifiÃ© et acceptÃ©.', source: docTrouve.nom })
     } else {
       controles.push({ nom: requis.label, type: requis.type, statut: 'a_verifier', detail: 'Document en attente de validation', score: 60 })
-      alertes.push({ niveau: 'vigilance', titre: requis.label + ' en attente', detail: 'Document fourni mais non encore validé. Revue humaine recommandée.', source: docTrouve.nom })
+      alertes.push({ niveau: 'vigilance', titre: requis.label + ' en attente', detail: 'Document fourni mais non encore validÃ©. Revue humaine recommandÃ©e.', source: docTrouve.nom })
     }
   })
 
   if ((dossier.taux_endettement || 0) > 0) {
     if ((dossier.taux_endettement || 0) > 40) {
-      croisements.push({ niveau: 'alerte', titre: 'Taux d’endettement élevé', detail: 'Le taux de ' + dossier.taux_endettement + '% dépasse le seuil bancaire standard de 35%. Élément à vérifier et argumenter.', source: 'Analyse financière' })
+      croisements.push({ niveau: 'alerte', titre: 'Taux dâendettement Ã©levÃ©', detail: 'Le taux de ' + dossier.taux_endettement + '% dÃ©passe le seuil bancaire standard de 35%. ÃlÃ©ment Ã  vÃ©rifier et argumenter.', source: 'Analyse financiÃ¨re' })
     } else if ((dossier.taux_endettement || 0) > 33) {
-      croisements.push({ niveau: 'vigilance', titre: 'Taux d’endettement en limite', detail: 'Le taux de ' + dossier.taux_endettement + '% est proche du seuil. Un examen attentif est recommandé.', source: 'Analyse financière' })
+      croisements.push({ niveau: 'vigilance', titre: 'Taux dâendettement en limite', detail: 'Le taux de ' + dossier.taux_endettement + '% est proche du seuil. Un examen attentif est recommandÃ©.', source: 'Analyse financiÃ¨re' })
     } else {
-      croisements.push({ niveau: 'ok', titre: 'Taux d’endettement cohérent', detail: 'Le taux de ' + dossier.taux_endettement + '% est dans les normes bancaires.', source: 'Analyse financière' })
+      croisements.push({ niveau: 'ok', titre: 'Taux dâendettement cohÃ©rent', detail: 'Le taux de ' + dossier.taux_endettement + '% est dans les normes bancaires.', source: 'Analyse financiÃ¨re' })
     }
   }
 
   if ((dossier.reste_a_vivre || 0) > 0) {
     const rav = dossier.reste_a_vivre || 0
     if (rav < 800) {
-      croisements.push({ niveau: 'alerte', titre: 'Reste à vivre insuffisant', detail: 'Le reste a vivre de ' + rav + ' EUR est en dessous du seuil minimal. Risque de refus bancaire.', source: 'Analyse financière' })
+      croisements.push({ niveau: 'alerte', titre: 'Reste Ã  vivre insuffisant', detail: 'Le reste a vivre de ' + rav + ' EUR est en dessous du seuil minimal. Risque de refus bancaire.', source: 'Analyse financiÃ¨re' })
     } else if (rav < 1200) {
-      croisements.push({ niveau: 'vigilance', titre: 'Reste à vivre limité', detail: 'Le reste a vivre de ' + rav + ' EUR est acceptable mais peut nécessiter des justificatifs complémentaires.', source: 'Analyse financière' })
+      croisements.push({ niveau: 'vigilance', titre: 'Reste Ã  vivre limitÃ©', detail: 'Le reste a vivre de ' + rav + ' EUR est acceptable mais peut nÃ©cessiter des justificatifs complÃ©mentaires.', source: 'Analyse financiÃ¨re' })
     } else {
-      croisements.push({ niveau: 'ok', titre: 'Reste à vivre confortable', detail: 'Le reste a vivre de ' + rav + ' EUR est satisfaisant pour la banque.', source: 'Analyse financière' })
+      croisements.push({ niveau: 'ok', titre: 'Reste Ã  vivre confortable', detail: 'Le reste a vivre de ' + rav + ' EUR est satisfaisant pour la banque.', source: 'Analyse financiÃ¨re' })
     }
   }
 
   if (docs.length >= 3) {
-    croisements.push({ niveau: 'ok', titre: 'Cohérence des informations dossier', detail: 'Les informations declarees sont cohérentes avec les documents fournis. Aucune incohérence potentielle détectée.', source: 'Contrôle croisé automatique' })
+    croisements.push({ niveau: 'ok', titre: 'CohÃ©rence des informations dossier', detail: 'Les informations declarees sont cohÃ©rentes avec les documents fournis. Aucune incohÃ©rence potentielle dÃ©tectÃ©e.', source: 'ContrÃ´le croisÃ© automatique' })
   } else if (docs.length > 0) {
-    croisements.push({ niveau: 'vigilance', titre: 'Dossier incomplet — contrôle croisé limité', detail: 'Le dossier ne contient pas suffisamment de documents pour effectuer un contrôle croisé complet. Revue humaine recommandée.', source: 'Contrôle croisé automatique' })
+    croisements.push({ niveau: 'vigilance', titre: 'Dossier incomplet â contrÃ´le croisÃ© limitÃ©', detail: 'Le dossier ne contient pas suffisamment de documents pour effectuer un contrÃ´le croisÃ© complet. Revue humaine recommandÃ©e.', source: 'ContrÃ´le croisÃ© automatique' })
   }
 
   return { controles, alertes, croisements }
@@ -161,8 +161,13 @@ export default function ControleDocsPage() {
       try {
         const { data: d } = await supabase.from('dossiers').select('*').eq('id', id).single()
         setDossier(d)
-        const { data: docData } = await supabase.from('documents').select('id, nom_fichier, statut_verification, type_document, contenu_extrait, created_at').eq('dossier_id', id)
-        setDocs(docData || [])
+        const { data: docData } = await supabase.from('documents').select('id, nom_fichier, statut_verification, type_document, contenu_extrait, ocr_data, created_at').eq('dossier_id', id)
+        // Fusionner ocr_data et contenu_extrait dans le champ analyse_ia pour l'affichage
+        const docsWithAnalyse = (docData || []).map((doc: any) => ({
+          ...doc,
+          analyse_ia: doc.ocr_data || doc.contenu_extrait || null,
+        }))
+        setDocs(docsWithAnalyse)
       } catch {}
       finally { setLoading(false) }
     }
@@ -185,13 +190,13 @@ export default function ControleDocsPage() {
   const nbOk = [...alertes, ...croisements].filter(a => a.niveau === 'ok').length
 
   const scoreColor = scoreFiabilite >= 75 ? '#16a34a' : scoreFiabilite >= 50 ? '#ca8a04' : '#dc2626'
-  const scoreLabel = scoreFiabilite >= 75 ? 'Fiabilité élevée' : scoreFiabilite >= 50 ? 'Fiabilité modérée' : 'Fiabilité faible'
+  const scoreLabel = scoreFiabilite >= 75 ? 'FiabilitÃ© Ã©levÃ©e' : scoreFiabilite >= 50 ? 'FiabilitÃ© modÃ©rÃ©e' : 'FiabilitÃ© faible'
 
   const recommandation = nbAlertes > 0
-    ? 'Ce dossier contient ' + nbAlertes + ' alerte(s) nécessitant une attention immédiate avant soumission bancaire. Revue humaine obligatoire.'
+    ? 'Ce dossier contient ' + nbAlertes + ' alerte(s) nÃ©cessitant une attention immÃ©diate avant soumission bancaire. Revue humaine obligatoire.'
     : nbVigilances > 0
-    ? 'Ce dossier contient ' + nbVigilances + ' point(s) de vigilance. Vérifier et compléter avant envoi en banque.'
-    : 'Le dossier presente un profil documentaire cohérent. Controles croisés satisfaisants. Soumission bancaire envisageable.'
+    ? 'Ce dossier contient ' + nbVigilances + ' point(s) de vigilance. VÃ©rifier et complÃ©ter avant envoi en banque.'
+    : 'Le dossier presente un profil documentaire cohÃ©rent. Controles croisÃ©s satisfaisants. Soumission bancaire envisageable.'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -209,7 +214,7 @@ export default function ControleDocsPage() {
               <text x="60" y="72" textAnchor="middle" fontSize="11" fill="var(--text-muted)">/100</text>
             </svg>
           </div>
-          <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>Score de fiabilité</div>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>Score de fiabilitÃ©</div>
           <div style={{ fontSize: '12px', fontWeight: 600, color: scoreColor, marginBottom: '16px' }}>{scoreLabel}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
@@ -217,7 +222,7 @@ export default function ControleDocsPage() {
               <span style={{ fontSize: '15px', fontWeight: 800, color: '#16a34a' }}>{nbOk}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#fefce8', borderRadius: '8px', border: '1px solid #fde68a' }}>
-              <span style={{ fontSize: '12px', color: '#ca8a04', fontWeight: 600 }}>À vérifier</span>
+              <span style={{ fontSize: '12px', color: '#ca8a04', fontWeight: 600 }}>Ã vÃ©rifier</span>
               <span style={{ fontSize: '15px', fontWeight: 800, color: '#ca8a04' }}>{nbVigilances}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca' }}>
@@ -237,7 +242,7 @@ export default function ControleDocsPage() {
 
           <div className="card">
             <div className="card-header" style={{ marginBottom: '14px' }}>
-              <h2 className="card-title">Contrôles par document</h2>
+              <h2 className="card-title">ContrÃ´les par document</h2>
               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{controles.length} types requis</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
@@ -261,14 +266,14 @@ export default function ControleDocsPage() {
 
       <div className="card">
         <div className="card-header" style={{ marginBottom: '16px' }}>
-          <h2 className="card-title">Contrôles croisés dossier</h2>
-          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Cohérence automatique</span>
+          <h2 className="card-title">ContrÃ´les croisÃ©s dossier</h2>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>CohÃ©rence automatique</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {croisements.length === 0 ? (
             <div className="empty-state" style={{ padding: '24px 0' }}>
-              <div className="empty-state-title">Aucun contrôle croisé disponible</div>
-              <div className="empty-state-desc">Ajoutez des documents et complétez les informations du dossier pour activer les controles croises.</div>
+              <div className="empty-state-title">Aucun contrÃ´le croisÃ© disponible</div>
+              <div className="empty-state-desc">Ajoutez des documents et complÃ©tez les informations du dossier pour activer les controles croises.</div>
             </div>
           ) : (
             croisements.map((c, i) => (
@@ -296,10 +301,10 @@ export default function ControleDocsPage() {
 
       <div className="card">
         <div className="card-header" style={{ marginBottom: '16px' }}>
-          <h2 className="card-title">Alertes hiérarchisées</h2>
+          <h2 className="card-title">Alertes hiÃ©rarchisÃ©es</h2>
           <div style={{ display: 'flex', gap: '8px' }}>
             {nbAlertes > 0 && <span className="badge badge-danger">{nbAlertes} alerte{nbAlertes > 1 ? 's' : ''}</span>}
-            {nbVigilances > 0 && <span className="badge badge-warning">{nbVigilances} à vérifier</span>}
+            {nbVigilances > 0 && <span className="badge badge-warning">{nbVigilances} Ã  vÃ©rifier</span>}
             {nbOk > 0 && <span className="badge badge-success">{nbOk} conforme{nbOk > 1 ? 's' : ''}</span>}
           </div>
         </div>
@@ -326,7 +331,7 @@ export default function ControleDocsPage() {
       {docs.length > 0 && (
         <div className="card">
           <div className="card-header" style={{ marginBottom: '16px' }}>
-            <h2 className="card-title">Documents analysés</h2>
+            <h2 className="card-title">Documents analysÃ©s</h2>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{docs.length} document{docs.length > 1 ? 's' : ''}</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -340,8 +345,8 @@ export default function ControleDocsPage() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.nom_fichier}</div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      {doc.type_document || 'Type non spécifié'}
-                      {doc.created_at ? ' - Ajouté le ' + new Date(doc.created_at).toLocaleDateString('fr-FR') : ''}
+                      {doc.type_document || 'Type non spÃ©cifiÃ©'}
+                      {doc.created_at ? ' - AjoutÃ© le ' + new Date(doc.created_at).toLocaleDateString('fr-FR') : ''}
                     </div>
                   </div>
                   <span style={{ fontSize: '11px', fontWeight: 700, color: s.color, background: s.bg, padding: '3px 10px', borderRadius: '6px', border: '1px solid ' + getAlerteBorder(doc.statut_verification === 'valide' ? 'ok' : 'vigilance'), flexShrink: 0 }}>
@@ -360,10 +365,11 @@ export default function ControleDocsPage() {
             <span style={{ fontSize: '18px', fontWeight: 800, color: '#1d4ed8' }}>i</span>
           </div>
           <div>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: '#1d4ed8', marginBottom: '6px' }}>Note importante — Vocabulaire prudent</div>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: '#1d4ed8', marginBottom: '6px' }}>Note importante â Vocabulaire prudent</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#c64700', marginBottom: '6px' }}>â Revue humaine recommandÃ©e</div>
             <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-              Les contrôles effectués par CortIA sont des signaux de vigilance automatiques. Toute incohérence potentielle ou anomalie documentaire doit faire l’objet d’une revue humaine avant conclusion.
-              Ce système ne constitue pas une vérification juridique et ne peut en aucun cas attester de la conformité ou de la fraude d’un document.
+              Les contrÃ´les effectuÃ©s par CortIA sont des signaux de vigilance automatiques. Toute incohÃ©rence potentielle ou anomalie documentaire doit faire lâobjet dâune revue humaine avant conclusion.
+              Ce systÃ¨me ne constitue pas une vÃ©rification juridique et ne peut en aucun cas attester de la conformitÃ© ou de la fraude dâun document.
             </div>
           </div>
         </div>
