@@ -87,21 +87,21 @@ function computeScoring(dossier: any, projet: any, emprunteurs: any[], charges: 
   const score_global = clamp(score_stabilite * 0.15 + score_endettement * 0.30 + score_patrimoine * 0.20 + score_rav * 0.20 + score_charge * 0.15)
 
   const points_forts: string[] = []
-  if (cdi && mainAnciennete >= 24) points_forts.push('Emploi stable en CDI avec ' + Math.round(mainAnciennete/12) + ' ans d\'ancienneté')
-  if (tauxEndettement <= 33) points_forts.push('Taux d\'endettement maîtrisé à ' + tauxEndettement.toFixed(1) + '% (seuil HCSF : 35%)')
+  if (cdi && mainAnciennete >= 24) points_forts.push('Emploi stable en CDI avec ' + Math.round(mainAnciennete/12) + ' ans d\'anciennetÃ©')
+  if (tauxEndettement <= 33) points_forts.push('Taux d\'endettement maÃ®trisÃ© Ã  ' + tauxEndettement.toFixed(1) + '% (seuil HCSF : 35%)')
   if (ratioApport >= 10) points_forts.push('Apport personnel solide de ' + ratioApport.toFixed(0) + '% du projet')
-  if (resteAVivre >= 1500) points_forts.push('Reste à vivre confortable de ' + Math.round(resteAVivre).toLocaleString('fr-FR') + ' €/mois')
-  if (sautDeCharge <= 0) points_forts.push('Pas de saut de charge : mensualité inférieure au loyer actuel')
-  if (emprunteurs.length > 1) points_forts.push('Co-emprunteur présent — renforce la capacité d\'emprunt')
+  if (resteAVivre >= 1500) points_forts.push('Reste Ã  vivre confortable de ' + Math.round(resteAVivre).toLocaleString('fr-FR') + ' â¬/mois')
+  if (sautDeCharge <= 0) points_forts.push('Pas de saut de charge : mensualitÃ© infÃ©rieure au loyer actuel')
+  if (emprunteurs.length > 1) points_forts.push('Co-emprunteur prÃ©sent â renforce la capacitÃ© d\'emprunt')
   if (points_forts.length === 0) points_forts.push('Dossier en cours d\'analyse approfondie')
 
   const points_vigilance: string[] = []
-  if (tauxEndettement > 35) points_vigilance.push('Taux d\'endettement de ' + tauxEndettement.toFixed(1) + '% dépasse le seuil HCSF de 35%')
-  if (ratioApport < 10) points_vigilance.push('Apport faible (' + ratioApport.toFixed(0) + '%) — risque de refus sans garanties complémentaires')
-  if (resteAVivre < 1200) points_vigilance.push('Reste à vivre insuffisant (' + Math.round(resteAVivre).toLocaleString('fr-FR') + ' €) — seuil recommandé 1 200 €')
-  if (sautDeCharge > 500) points_vigilance.push('Saut de charge important de ' + Math.round(sautDeCharge).toLocaleString('fr-FR') + ' €/mois')
-  if (mainAnciennete < 12) points_vigilance.push('Ancienneté professionnelle insuffisante (moins de 12 mois)')
-  if (duree > 300) points_vigilance.push('Durée d\'emprunt longue (' + Math.round(duree/12) + ' ans) — impact sur le coût total du crédit')
+  if (tauxEndettement > 35) points_vigilance.push('Taux d\'endettement de ' + tauxEndettement.toFixed(1) + '% dÃ©passe le seuil HCSF de 35%')
+  if (ratioApport < 10) points_vigilance.push('Apport faible (' + ratioApport.toFixed(0) + '%) â risque de refus sans garanties complÃ©mentaires')
+  if (resteAVivre < 1200) points_vigilance.push('Reste Ã  vivre insuffisant (' + Math.round(resteAVivre).toLocaleString('fr-FR') + ' â¬) â seuil recommandÃ© 1 200 â¬')
+  if (sautDeCharge > 500) points_vigilance.push('Saut de charge important de ' + Math.round(sautDeCharge).toLocaleString('fr-FR') + ' â¬/mois')
+  if (mainAnciennete < 12) points_vigilance.push('AnciennetÃ© professionnelle insuffisante (moins de 12 mois)')
+  if (duree > 300) points_vigilance.push('DurÃ©e d\'emprunt longue (' + Math.round(duree/12) + ' ans) â impact sur le coÃ»t total du crÃ©dit')
 
   // Match against real bank criteria
   const banquesMatch = matchBanques({
@@ -121,19 +121,19 @@ function computeScoring(dossier: any, projet: any, emprunteurs: any[], charges: 
   }))
   const meilleuresBanques = banquesMatch.slice(0, 5)
 
-  let lecture = 'Dossier analysé par le moteur CortIA. '
-  if (score_global >= 75) lecture += 'Le profil emprunteur présente des indicateurs solides avec un taux d\'endettement maîtrisé et un patrimoine adéquat. Ce dossier peut être présenté aux grandes banques de détail avec confiance. '
-  else if (score_global >= 50) lecture += 'Le dossier est globalement acceptable mais présente des axes d\'amélioration. Il est conseillé de travailler sur le renforcement de l\'apport ou la réduction des charges avant la présentation en banque. '
-  else lecture += 'Le dossier nécessite une consolidation significative avant présentation. Les principaux leviers sont l\'augmentation de l\'apport, la réduction du montant emprunté ou l\'allongement de la durée. Un co-emprunteur pourrait également renforcer le dossier. '
+  let lecture = 'Dossier analysÃ© par le moteur CortIA. '
+  if (score_global >= 75) lecture += 'Le profil emprunteur prÃ©sente des indicateurs solides avec un taux d\'endettement maÃ®trisÃ© et un patrimoine adÃ©quat. Ce dossier peut Ãªtre prÃ©sentÃ© aux grandes banques de dÃ©tail avec confiance. '
+  else if (score_global >= 50) lecture += 'Le dossier est globalement acceptable mais prÃ©sente des axes d\'amÃ©lioration. Il est conseillÃ© de travailler sur le renforcement de l\'apport ou la rÃ©duction des charges avant la prÃ©sentation en banque. '
+  else lecture += 'Le dossier nÃ©cessite une consolidation significative avant prÃ©sentation. Les principaux leviers sont l\'augmentation de l\'apport, la rÃ©duction du montant empruntÃ© ou l\'allongement de la durÃ©e. Un co-emprunteur pourrait Ã©galement renforcer le dossier. '
 
   if (banquesEligibles.length > 0) {
-    lecture += 'Banques recommandées : ' + banquesEligibles.slice(0, 3).join(', ') + '. '
+    lecture += 'Banques recommandÃ©es : ' + banquesEligibles.slice(0, 3).join(', ') + '. '
   } else if (banquesProches.length > 0) {
     lecture += 'Aucune banque ne correspond parfaitement au profil. Les plus proches : ' + banquesProches.slice(0, 2).map(b => b.nom).join(', ') + '. '
   }
 
   const bestTaux = meilleuresBanques.find(b => b.eligible)?.banque.taux_moyen
-  if (bestTaux) lecture += 'Meilleur taux estimé : ' + bestTaux.toFixed(2) + '%. '
+  if (bestTaux) lecture += 'Meilleur taux estimÃ© : ' + bestTaux.toFixed(2) + '%. '
 
   return {
     dossier_id: dossier.id, revenus_retenus: Math.round(totalRevenus), cout_total_projet: Math.round(coutTotal),
@@ -150,8 +150,38 @@ function computeScoring(dossier: any, projet: any, emprunteurs: any[], charges: 
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    // D'abord verifier s'il existe une analyse IA recente (genere_par_ia = true)
+    const { data: existingIA } = await supabase
+      .from('analyses_financieres')
+      .select('*')
+      .eq('dossier_id', params.id)
+      .eq('genere_par_ia', true)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (existingIA && existingIA.score_global) {
+      // Une analyse IA existe, on la retourne en complement de banques
+      const { data: dossier } = await supabase.from('dossiers').select('*, emprunteurs(*), projets(*), charges(*)').eq('id', params.id).single()
+      if (dossier) {
+        const projets = Array.isArray(dossier.projets) ? dossier.projets : (dossier.projets ? [dossier.projets] : [])
+        const emprunteurs = Array.isArray(dossier.emprunteurs) ? dossier.emprunteurs : (dossier.emprunteurs ? [dossier.emprunteurs] : [])
+        const charges = Array.isArray(dossier.charges) ? dossier.charges : (dossier.charges ? [dossier.charges] : [])
+        const scoring = computeScoring(dossier, projets[0] || null, emprunteurs, charges)
+        // Merger: garder scores IA mais ajouter donnees banques
+        return NextResponse.json({
+          ...existingIA,
+          banques_eligibles: scoring.banques_eligibles,
+          banques_proches: scoring.banques_proches,
+          top_banques: scoring.top_banques,
+          cout_total_projet: scoring.cout_total_projet,
+          revenus_retenus: existingIA.revenus_nets_mensuels_total || scoring.revenus_retenus,
+        })
+      }
+    }
+
     const { data: dossier, error: dErr } = await supabase.from('dossiers').select('*, emprunteurs(*), projets(*), charges(*)').eq('id', params.id).single()
-    if (dErr || !dossier) return NextResponse.json({ error: 'Dossier non trouvé' }, { status: 404 })
+    if (dErr || !dossier) return NextResponse.json({ error: 'Dossier non trouve' }, { status: 404 })
 
     const projets = Array.isArray(dossier.projets) ? dossier.projets : (dossier.projets ? [dossier.projets] : [])
     const emprunteurs = Array.isArray(dossier.emprunteurs) ? dossier.emprunteurs : (dossier.emprunteurs ? [dossier.emprunteurs] : [])
