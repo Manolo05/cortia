@@ -371,11 +371,11 @@ export default function SyntheseBanquePage() {
 
   // Sub-scores for radar display
   const subScores = analyse ? [
-    { label: 'Revenus', value: analyse.score_revenus, max: 25 },
-    { label: 'Stabilité', value: analyse.score_stabilite, max: 20 },
-    { label: 'Endettement', value: analyse.score_endettement, max: 25 },
-    { label: 'Apport', value: analyse.score_apport, max: 20 },
-    { label: 'Patrimoine', value: analyse.score_patrimoine, max: 10 },
+    { label: 'Revenus', value: analyse.score_revenus, max: 100 },
+    { label: 'Stabilité', value: analyse.score_stabilite, max: 100 },
+    { label: 'Endettement', value: analyse.score_endettement, max: 100 },
+    { label: 'Apport', value: analyse.score_apport, max: 100 },
+    { label: 'Patrimoine', value: analyse.score_patrimoine, max: 100 },
   ] : []
 
   return (
