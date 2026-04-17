@@ -7,9 +7,9 @@ const inter = Inter({ subsets: ['latin'] })
 const SITE_URL = 'https://cortia-kappa.vercel.app'
 
 export const metadata: Metadata = {
-  title: 'CortIA — Logiciel IA pour courtiers en credit immobilier (IOBSP)',
-  description: 'CortIA analyse vos dossiers de pret immobilier 3x plus vite grace a l\'IA. Score de risque, recommandation bancaire, OCR documents. Essai gratuit pour courtiers IOBSP.',
-  keywords: 'courtier credit immobilier, logiciel courtage, IOBSP, analyse dossier pret, score risque IA, recommandation bancaire, OCR documents courtier, SaaS courtage',
+  title: 'CortIA \u2014 Logiciel IA pour courtiers en cr\u00e9dit immobilier (IOBSP)',
+  description: 'CortIA analyse vos dossiers de cr\u00e9dit immobilier en 2 minutes. Score IA, d\u00e9tection des risques, recommandation bancaire automatique. Gratuit pour les courtiers IOBSP.',
+  keywords: 'courtier cr\u00e9dit immobilier, logiciel courtage, IOBSP, analyse dossier pr\u00eat, score risque IA, recommandation bancaire, OCR documents courtier, SaaS courtage',
   authors: [{ name: 'CortIA' }],
   creator: 'CortIA',
   publisher: 'CortIA',
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
         url: '/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'CortIA - Plateforme IA pour courtiers en credit immobilier',
+        alt: 'CortIA - Plateforme IA pour courtiers en cr\u00e9dit immobilier',
       },
     ],
   },
@@ -73,17 +73,12 @@ export default function RootLayout({
               applicationCategory: 'BusinessApplication',
               operatingSystem: 'Web',
               url: SITE_URL,
-              description: 'Logiciel IA pour courtiers en credit immobilier. Analyse de dossiers, score de risque, recommandation bancaire automatique.',
+              description: 'Logiciel IA pour courtiers en cr\u00e9dit immobilier. Analyse de dossiers, score de risque, recommandation bancaire automatique.',
               offers: {
                 '@type': 'Offer',
                 price: '0',
                 priceCurrency: 'EUR',
                 description: 'Plan Solo gratuit - 5 dossiers/mois',
-              },
-              aggregateRating: {
-                '@type': 'AggregateRating',
-                ratingValue: '4.8',
-                ratingCount: '127',
               },
             }),
           }}
