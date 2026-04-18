@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 export function NavButtons() {
   const router = useRouter()
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
+
   return (
     <>
       <div style={{ display: 'flex', gap: 32, fontSize: 14, fontWeight: 500, color: '#5A6B80' }}>
