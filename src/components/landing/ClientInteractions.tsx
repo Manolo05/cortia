@@ -10,11 +10,11 @@ export function NavButtons() {
   return (
     <>
       <div style={{ display: 'flex', gap: 32, fontSize: 14, fontWeight: 500, color: '#5A6B80' }}>
-        <button onClick={() => scrollTo('features')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>Fonctionnalit\u00e9s</button>
-        <button onClick={() => scrollTo('how')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>Comment \u00e7a marche</button>
+        <button onClick={() => scrollTo('features')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>Fonctionnalités</button>
+        <button onClick={() => scrollTo('how')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>Comment ça marche</button>
         <button onClick={() => scrollTo('pricing')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>Tarifs</button>
       </div>
-      <button onClick={() => router.push('/login')} style={{ background: '#0B1D3A', color: '#fff', padding: '10px 24px', borderRadius: 8, fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer' }}>{"Acc\u00e9der \u00e0 l'app"}</button>
+      <button onClick={() => router.push('/login')} style={{ background: '#0B1D3A', color: '#fff', padding: '10px 24px', borderRadius: 8, fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer' }}>{"Accéder à l'app"}</button>
     </>
   )
 }
@@ -55,7 +55,7 @@ export function FooterLinks() {
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14, color: '#5A6B80' }}>
-      <button onClick={() => scrollTo('features')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textAlign: 'left', padding: 0 }}>Fonctionnalit\u00e9s</button>
+      <button onClick={() => scrollTo('features')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textAlign: 'left', padding: 0 }}>Fonctionnalités</button>
       <button onClick={() => scrollTo('pricing')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textAlign: 'left', padding: 0 }}>Tarifs</button>
     </div>
   )
