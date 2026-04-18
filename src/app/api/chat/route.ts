@@ -7,6 +7,23 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
+// Rate limiter
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now()
+  const e = rateLimitMap.get(ip)
+  if (!e || now > e.resetAt) { rateLimitMap.set(ip, { count: 1, resetAt: now + 60000 }); return true }
+  if (e.count >= 20) return false
+  e.count++
+  return true
+}
+function validateInput(b: any) {
+  if (!b?.dossierId || typeof b.dossierId !== 'string' || !/^[0-9a-f-]{36}$/.test(b.dossierId)) return { ok: false, err: 'dossierId invalide' }
+  if (!Array.isArray(b.messages) || b.messages.length > 20) return { ok: false, err: 'messages invalide' }
+  for (const m of b.messages) { if (!['user','assistant'].includes(m.role) || typeof m.content !== 'string' || m.content.length > 5000) return { ok: false, err: 'message invalide' } }
+  return { ok: true }
+}
+
 async function getDossierContext(dossierId: string) {
   const [dossierRes, projetRes, emprunteursRes, analyseRes, docsRes] = await Promise.all([
     supabase.from('dossiers').select('*').eq('id', dossierId).single(),
@@ -87,11 +104,12 @@ ${banquesInfo}
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, dossierId } = await req.json()
-
-    if (!dossierId) {
-      return new Response(JSON.stringify({ error: 'dossierId requis' }), { status: 400 })
-    }
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    if (!checkRateLimit(ip)) return new Response(JSON.stringify({ error: 'Trop de requ\u00eates' }), { status: 429 })
+    const body = await req.json()
+    const v = validateInput(body)
+    if (!v.ok) return new Response(JSON.stringify({ error: v.err }), { status: 400 })
+    const { messages, dossierId } = body
 
     const context = await getDossierContext(dossierId)
     const systemPrompt = buildSystemPrompt(context)
