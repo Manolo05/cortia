@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import ChatWidget from '@/components/chat/ChatWidget'
 
 interface DossierHeader {
   id: string
@@ -187,6 +188,9 @@ export default function DossierLayout({ children }: { children: React.ReactNode 
       <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '28px 32px' }}>
         {children}
       </div>
+
+      {/* Agent IA */}
+      <ChatWidget dossierId={id} clientName={nomClient || dossier?.reference} />
     </div>
   )
 }
