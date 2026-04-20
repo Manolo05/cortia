@@ -9,13 +9,13 @@ export function NavButtons() {
 
   return (
     <>
-      <div style={{ display: 'flex', gap: 28, fontSize: 14, fontWeight: 500, color: '#5A6B80' }}>
+      <div className="lp-nav-links" style={{ display: 'flex', gap: 28, fontSize: 14, fontWeight: 500, color: '#5A6B80' }}>
         <button onClick={() => scrollTo('ia-metier')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>{"L'IA M\u00e9tier"}</button>
         <button onClick={() => scrollTo('features')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>{"Fonctionnalit\u00e9s"}</button>
         <button onClick={() => scrollTo('banques')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>Banques</button>
         <button onClick={() => scrollTo('pricing')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>Tarifs</button>
       </div>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+      <div className="lp-nav-btns" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
         <button onClick={() => router.push('/login')} style={{ background: 'none', color: '#5A6B80', padding: '10px 16px', borderRadius: 8, fontSize: 14, fontWeight: 500, border: 'none', cursor: 'pointer' }}>Connexion</button>
         <DemoButton variant="nav" />
       </div>
@@ -31,7 +31,7 @@ export function DemoButton({ variant = 'primary' }: { variant?: 'primary' | 'nav
     outline: { background: 'transparent', color: '#0B1D3A', padding: '16px 32px', borderRadius: 10, fontSize: 15, fontWeight: 600, border: '1.5px solid rgba(11,29,58,0.15)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 },
   }
   const label = variant === 'gold' ? "D\u00e9marrer mon essai gratuit \u2192" : "R\u00e9server une d\u00e9mo"
-  return <button onClick={() => window.open('https://calendly.com', '_blank')} style={styles[variant]}>{label}</button>
+  return <button onClick={() => window.open('https://calendly.com/cortia-demo/30min', '_blank')} style={styles[variant]}>{label}</button>
 }
 
 export function LogoClick({ children }: { children: React.ReactNode }) {
@@ -106,7 +106,7 @@ export function FooterLegalLinks() {
 export function PricingCTA({ label, primary }: { label: string; primary: boolean }) {
   const handleClick = () => {
     if (primary) {
-      window.open('https://calendly.com', '_blank')
+      window.open('https://calendly.com/cortia-demo/30min', '_blank')
     } else {
       window.location.href = '/login'
     }
@@ -115,3 +115,4 @@ export function PricingCTA({ label, primary }: { label: string; primary: boolean
     <button onClick={handleClick} style={{ width: '100%', padding: '16px 0', borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: 'pointer', background: primary ? '#D4A843' : 'transparent', color: primary ? '#0B1D3A' : '#0B1D3A', border: primary ? 'none' : '1.5px solid rgba(11,29,58,0.15)' }}>{label}</button>
   )
 }
+ 
