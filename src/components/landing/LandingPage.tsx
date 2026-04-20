@@ -31,7 +31,7 @@ const pricing = [
 export default function LandingPage() {
   return (
     <div style={{ background: '#F7F4EE', color: '#0B1D3A', fontFamily: "'DM Sans', system-ui, sans-serif", minHeight: '100vh' }}>
-      <style>{`.lp-serif{font-family:'DM Serif Display',serif}@keyframes lp-pulse{0%,100%{opacity:1}50%{opacity:.4}}@keyframes lp-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}.lp-float{animation:lp-float 3s ease-in-out infinite}.lp-float2{animation:lp-float 3s ease-in-out infinite 1.5s}@keyframes lp-slide{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}.lp-marquee{animation:lp-slide 20s linear infinite}`}</style>
+      <style>{`.lp-serif{font-family:'DM Serif Display',serif}@keyframes lp-pulse{0%,100%{opacity:1}50%{opacity:.4}}@keyframes lp-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}.lp-float{animation:lp-float 3s ease-in-out infinite}.lp-float2{animation:lp-float 3s ease-in-out infinite 1.5s}@keyframes lp-slide{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}.lp-marquee{animation:lp-slide 20s linear infinite}@media(max-width:768px){.lp-hero-grid{grid-template-columns:1fr!important;gap:32px!important;text-align:center}.lp-hero-grid h1{font-size:32px!important}.lp-hero-grid p{font-size:16px!important}.lp-stats-grid{grid-template-columns:repeat(2,1fr)!important;gap:20px!important}.lp-feat-grid{grid-template-columns:1fr!important}.lp-ia-grid{grid-template-columns:1fr!important}.lp-steps-grid{grid-template-columns:1fr!important}.lp-test-grid{grid-template-columns:1fr!important}.lp-price-grid{grid-template-columns:1fr!important}.lp-footer-grid{grid-template-columns:1fr!important;gap:24px!important}.lp-nav-links{display:none!important}.lp-nav-btns{gap:8px!important}.lp-hero-card{display:none!important}.lp-hero-cta{flex-direction:column!important;align-items:stretch!important}.lp-hero-checks{justify-content:center!important}.lp-cta-box{padding:48px 24px!important}.lp-cta-box h2{font-size:28px!important}.lp-section-title{font-size:28px!important}}@media(max-width:480px){.lp-stats-grid{grid-template-columns:1fr!important}}`}</style>
 
       {/* NAV */}
       <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, backdropFilter: 'blur(20px)', background: 'rgba(247,244,238,0.9)', borderBottom: '1px solid rgba(11,29,58,0.05)' }}>
@@ -47,7 +47,7 @@ export default function LandingPage() {
       {/* HERO */}
       <section style={{ paddingTop: 140, paddingBottom: 80, position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: -200, right: -200, width: 600, height: 600, background: 'radial-gradient(circle, rgba(212,168,67,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center' }}>
+        <div className="lp-hero-grid" style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center' }}>
           <div>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(212,168,67,0.15)', color: '#D4A843', padding: '6px 16px', borderRadius: 9999, fontSize: 13, fontWeight: 600, marginBottom: 24, border: '1px solid rgba(212,168,67,0.2)' }}>
               <span style={{ width: 6, height: 6, background: '#D4A843', borderRadius: '50%', animation: 'lp-pulse 2s infinite' }} />
@@ -57,17 +57,17 @@ export default function LandingPage() {
               Votre assistant IA pour le <span style={{ color: '#D4A843' }}>courtage en cr&eacute;dit immobilier</span>
             </h1>
             <p style={{ fontSize: 18, color: '#5A6B80', lineHeight: 1.6, marginBottom: 36, maxWidth: 480 }}>CortIA analyse vos dossiers, score le risque et recommande les meilleures banques. Automatis&eacute;, intelligent, con&ccedil;u pour les IOBSP.</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+            <div className="lp-hero-cta" style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
               <DemoButton variant="primary" />
               <ScrollButton targetId="ia-metier" style={{ background: 'transparent', color: '#0B1D3A', padding: '16px 32px', borderRadius: 10, fontSize: 15, fontWeight: 600, border: '1.5px solid rgba(11,29,58,0.15)', cursor: 'pointer' }}>D&eacute;couvrir l&apos;IA M&eacute;tier</ScrollButton>
             </div>
-            <div style={{ display: 'flex', gap: 24, marginTop: 32, fontSize: 13, color: '#8A97A8' }}>
+            <div className="lp-hero-checks" style={{ display: 'flex', gap: 24, marginTop: 32, fontSize: 13, color: '#8A97A8' }}>
               <span>{'\u2713'} Essai gratuit</span>
               <span>{'\u2713'} Sans carte bancaire</span>
               <span>{'\u2713'} RGPD</span>
             </div>
           </div>
-          <div style={{ position: 'relative' }}>
+          <div className="lp-hero-card" style={{ position: 'relative' }}>
             <div className="lp-float" style={{ position: 'absolute', top: -10, right: 10, background: '#fff', padding: '10px 16px', borderRadius: 10, boxShadow: '0 8px 32px rgba(11,29,58,0.1)', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, zIndex: 10 }}><span style={{ color: '#1D9E75' }}>{'\u2713'}</span> Score 87/100</div>
             <div style={{ background: '#fff', borderRadius: 20, padding: 28, boxShadow: '0 24px 80px rgba(11,29,58,0.08)', border: '1px solid rgba(11,29,58,0.04)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}><span style={{ fontWeight: 600, fontSize: 14 }}>Dossier #2024-0847</span><span style={{ padding: '4px 12px', borderRadius: 9999, fontSize: 12, fontWeight: 600, background: 'rgba(29,158,117,0.1)', color: '#1D9E75' }}>{'\u00c9'}ligible</span></div>
@@ -86,7 +86,7 @@ export default function LandingPage() {
 
       {/* STATS */}
       <section style={{ padding: '64px 0', borderTop: '1px solid rgba(11,29,58,0.05)' }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 40, textAlign: 'center' }}>
+        <div className="lp-stats-grid" style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 40, textAlign: 'center' }}>
           {[['150%','De productivit\u00e9'],['12','Banques analys\u00e9es'],['2 min','Par dossier'],['0\u20ac','Pour d\u00e9marrer']].map(([v,l])=>(<div key={v as string}><div className="lp-serif" style={{ fontSize: 36, color: '#0B1D3A' }}>{v}</div><div style={{ fontSize: 14, color: '#5A6B80', marginTop: 4 }}>{l}</div></div>))}
         </div>
       </section>
@@ -101,7 +101,7 @@ export default function LandingPage() {
             <h2 className="lp-serif" style={{ fontSize: 40, lineHeight: 1.15, marginBottom: 16 }}>La technologie CortIA</h2>
             <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, maxWidth: 600, margin: '0 auto' }}>4 technologies exclusives, con&ccedil;ues pour le m&eacute;tier de courtier en cr&eacute;dit immobilier.</p>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20 }}>
+          <div className="lp-ia-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20 }}>
             {iaFeatures.map((f, i) => (
               <div key={i} style={{ padding: 32, borderRadius: 20, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', position: 'relative' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
@@ -137,7 +137,7 @@ export default function LandingPage() {
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(212,168,67,0.15)', color: '#D4A843', padding: '6px 16px', borderRadius: 9999, fontSize: 13, fontWeight: 600, marginBottom: 16, border: '1px solid rgba(212,168,67,0.15)' }}>Fonctionnalit&eacute;s</div>
           <h2 className="lp-serif" style={{ fontSize: 40, lineHeight: 1.15, marginBottom: 16, maxWidth: 600 }}>Tout ce dont un courtier a besoin, augment&eacute; par l&apos;IA</h2>
           <p style={{ fontSize: 17, color: '#5A6B80', lineHeight: 1.6, maxWidth: 520, marginBottom: 64 }}>CortIA centralise et automatise votre m&eacute;tier de courtage.</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+          <div className="lp-feat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
             {features.map((f,i)=>(<div key={i} style={{ background: '#fff', borderRadius: 20, padding: 32, border: '1px solid rgba(11,29,58,0.04)' }}><div style={{ width: 48, height: 48, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, fontSize: 20, background: f.cls === 'bg-dark' ? '#0B1D3A' : f.cls === 'bg-blue' ? 'rgba(55,138,221,0.1)' : 'rgba(212,168,67,0.15)', color: f.cls === 'bg-blue' ? '#378ADD' : '#D4A843' }}>{f.icon}</div><h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 10 }}>{f.title}</h3><p style={{ fontSize: 14, color: '#5A6B80', lineHeight: 1.6 }}>{f.desc}</p></div>))}
           </div>
         </div>
@@ -151,7 +151,7 @@ export default function LandingPage() {
             <h2 className="lp-serif" style={{ fontSize: 40, lineHeight: 1.15, marginBottom: 16 }}>3 &eacute;tapes, 2 minutes</h2>
             <p style={{ fontSize: 17, color: '#5A6B80', lineHeight: 1.6, maxWidth: 520, margin: '0 auto' }}>Concentrez-vous sur le conseil client, CortIA s&apos;occupe de l&apos;analyse.</p>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
+          <div className="lp-steps-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
             {[['01','Cr\u00e9ez le dossier',"Saisissez les informations ou uploadez les pi\u00e8ces justificatives. L'OCR extrait tout automatiquement.",'#D4A843'],['02',"L'IA analyse","Score de risque, points de vigilance, capacit\u00e9 d'emprunt. R\u00e9sultat en 2 minutes.",'#378ADD'],['03','Soumettez aux banques',"Banques class\u00e9es par probabilit\u00e9 d'acceptation. L'agent IA r\u00e9pond \u00e0 vos questions.",'#1D9E75']].map(([n,t,d,c])=>(<div key={n as string} style={{ padding: 32, borderRadius: 20, background: '#F7F4EE', border: '1px solid rgba(11,29,58,0.04)', position: 'relative' }}>
               <div style={{ width: 48, height: 48, borderRadius: 12, background: c as string, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 18, marginBottom: 20 }} className="lp-serif">{n}</div>
               <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 10 }}>{t}</h3>
@@ -169,7 +169,7 @@ export default function LandingPage() {
             <h2 className="lp-serif" style={{ fontSize: 40, lineHeight: 1.15, marginBottom: 16 }}>Ils utilisent CortIA</h2>
             <p style={{ fontSize: 17, color: '#5A6B80' }}>Retours de nos premiers utilisateurs en phase beta.</p>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+          <div className="lp-test-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
             {testimonials.map((t,i)=>(<div key={i} style={{ background: '#fff', borderRadius: 20, padding: 28, border: '1px solid rgba(11,29,58,0.04)' }}><div style={{ color: '#D4A843', fontSize: 14, letterSpacing: '0.1em', marginBottom: 12 }}>{'\u2605\u2605\u2605\u2605\u2605'}</div><p style={{ fontSize: 15, lineHeight: 1.7, marginBottom: 20, fontStyle: 'italic' }}>{`\u00ab ${t.text} \u00bb`}</p><div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ width: 40, height: 40, borderRadius: '50%', background: '#0B1D3A', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4A843', fontWeight: 700, fontSize: 14 }}>{t.initials}</div><div><div style={{ fontWeight: 600, fontSize: 14 }}>{t.name}</div><div style={{ fontSize: 12, color: '#8A97A8' }}>{t.role}</div></div></div></div>))}
           </div>
         </div>
@@ -181,7 +181,7 @@ export default function LandingPage() {
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(212,168,67,0.15)', color: '#D4A843', padding: '6px 16px', borderRadius: 9999, fontSize: 13, fontWeight: 600, marginBottom: 16, border: '1px solid rgba(212,168,67,0.15)' }}>Tarifs</div>
           <h2 className="lp-serif" style={{ fontSize: 40, lineHeight: 1.15, marginBottom: 16 }}>Tarifs transparents, sans engagement</h2>
           <p style={{ fontSize: 17, color: '#5A6B80', maxWidth: 520, margin: '0 auto 64px' }}>Support inclus, formation personnalis&eacute;e et aucun frais d&apos;installation.</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, textAlign: 'left' }}>
+          <div className="lp-price-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, textAlign: 'left' }}>
             {pricing.map((p,i)=>(<div key={i} style={{ background: '#F7F4EE', borderRadius: 20, padding: 32, position: 'relative', border: p.featured ? '2px solid #D4A843' : '1px solid rgba(11,29,58,0.04)', boxShadow: p.featured ? '0 16px 48px rgba(212,168,67,0.12)' : 'none' }}>{p.featured&&<div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: '#D4A843', color: '#fff', padding: '4px 16px', borderRadius: 9999, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>Le plus populaire</div>}<div style={{ fontSize: 14, color: '#5A6B80', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{p.name}</div><div className="lp-serif" style={{ fontSize: 48, margin: '12px 0' }}>{p.price}</div><div style={{ fontSize: 13, color: '#8A97A8' }}>{p.period}</div><p style={{ fontSize: 14, color: '#5A6B80', margin: '16px 0' }}>{p.desc}</p><ul style={{ marginBottom: 28, listStyle: 'none', padding: 0 }}>{p.feats.map((f,fi)=>(<li key={fi} style={{ padding: '8px 0', fontSize: 14, color: '#5A6B80', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid rgba(11,29,58,0.04)' }}><span style={{ width: 16, height: 16, borderRadius: '50%', background: 'rgba(29,158,117,0.1)', flexShrink: 0, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1D9E75' }}>{'\u2713'}</span>{f}</li>))}</ul><PricingCTA label={p.cta} primary={p.primary} /></div>))}
           </div>
         </div>
@@ -190,7 +190,7 @@ export default function LandingPage() {
       {/* FINAL CTA */}
       <section style={{ padding: '96px 0' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
-          <div style={{ background: '#0B1D3A', borderRadius: 24, padding: '80px 64px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+          <div className="lp-cta-box" style={{ background: '#0B1D3A', borderRadius: 24, padding: '80px 64px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
             <div style={{ position: 'absolute', top: -100, right: -100, width: 400, height: 400, background: 'radial-gradient(circle, rgba(212,168,67,0.1) 0%, transparent 70%)' }} />
             <h2 className="lp-serif" style={{ fontSize: 40, color: '#fff', marginBottom: 16, position: 'relative' }}>Pr&ecirc;t &agrave; transformer votre courtage ?</h2>
             <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.6)', marginBottom: 40, maxWidth: 500, margin: '0 auto 40px', position: 'relative' }}>Rejoignez les courtiers qui analysent plus vite et convertissent plus.</p>
@@ -204,7 +204,7 @@ export default function LandingPage() {
       {/* FOOTER */}
       <footer style={{ paddingTop: 64, paddingBottom: 40, borderTop: '1px solid rgba(11,29,58,0.05)' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 40, marginBottom: 40 }}>
+          <div className="lp-footer-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 40, marginBottom: 40 }}>
             <div>
               <div className="lp-serif" style={{ fontSize: 20, display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                 <div style={{ width: 28, height: 28, background: '#0B1D3A', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4A843', fontWeight: 700, fontSize: 12 }} className="lp-serif">C</div>CortIA
