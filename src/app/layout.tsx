@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
-import './globals.css'
 import CookieBanner from '@/components/CookieBanner'
+import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -23,8 +23,8 @@ export const metadata: Metadata = {
     locale: 'fr_FR',
     url: SITE_URL,
     siteName: 'CortIA',
-    title: 'CortIA — Analysez vos dossiers immobiliers 3x plus vite avec l\'IA',
-    description: 'Logiciel IA pour courtiers IOBSP : score de risque, recommandation bancaire automatique, OCR documents. Essai gratuit 14 jours.',
+    title: 'CortIA \u2014 Analysez vos dossiers immobiliers 3x plus vite avec l\'IA',
+    description: 'Logiciel IA pour courtiers IOBSP : score de risque, recommandation bancaire automatique, OCR documents. Essai gratuit.',
     images: [
       {
         url: '/og-image.png',
@@ -64,6 +64,13 @@ export default function RootLayout({
   return (
     <html lang="fr" suppressHydrationWarning>
       <head>
+        {/* Google Analytics 4 — Replace G-XXXXXXXXXX with your real GA4 ID */}
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-XXXXXXXXXX');`,
+          }}
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
